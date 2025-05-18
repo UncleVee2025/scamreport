@@ -68,8 +68,8 @@ export function AppHeader() {
 
           {/* Logo */}
           <Link href="/dashboard" className="flex items-center gap-2">
-            <img src="/logo.png" alt="ScamReport Logo" className="h-8 w-auto" />
-            <span className="font-bold text-xl hidden md:inline-block">ScamReport</span>
+            <img src="/images/logo.png" alt="ScamReport Namibia" className="h-8 w-auto" />
+            <span className="font-bold text-xl hidden md:inline-block">ScamReport Namibia</span>
           </Link>
         </div>
 

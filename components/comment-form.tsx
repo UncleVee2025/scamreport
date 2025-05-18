@@ -10,9 +10,10 @@ import { toast } from "@/components/ui/use-toast"
 interface CommentFormProps {
   scamId: number
   onCommentAdded: (comment: any) => void
+  userId?: number // In a real app, this would come from auth context
 }
 
-export function CommentForm({ scamId, onCommentAdded }: CommentFormProps) {
+export function CommentForm({ scamId, onCommentAdded, userId = 1 }: CommentFormProps) {
   const [comment, setComment] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -29,7 +30,7 @@ export function CommentForm({ scamId, onCommentAdded }: CommentFormProps) {
       const response = await fetch(`/api/scams/${scamId}/comments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: 1, comment: comment }), // In a real app, get userId from auth context
+        body: JSON.stringify({ userId, comment }),
       })
 
       console.log("Response status:", response.status)
@@ -42,7 +43,7 @@ export function CommentForm({ scamId, onCommentAdded }: CommentFormProps) {
 
       // Format the comment for display
       const newComment = {
-        id: data.data.id,
+        id: data.data?.id || Date.now(),
         user: {
           name: "You",
           avatar: "/placeholder.svg?height=40&width=40&text=You",

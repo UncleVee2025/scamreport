@@ -5,11 +5,14 @@ import Image from "next/image"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowLeft, User, ShieldAlert, ArrowRight } from "lucide-react"
-import { useRouter } from "next/navigation"
+import { ArrowLeft, User, ShieldAlert, ArrowRight, Lock } from "lucide-react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 export default function AuthSelectionPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const callbackUrl = searchParams.get("callbackUrl") || "/dashboard"
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex flex-col">
@@ -26,7 +29,7 @@ export default function AuthSelectionPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <div className="text-center mb-12">
+          <div className="text-center mb-8">
             <motion.div
               className="relative w-32 h-32 mx-auto mb-6"
               initial={{ scale: 0.8 }}
@@ -35,11 +38,20 @@ export default function AuthSelectionPage() {
             >
               <Image src="/images/logo.png" alt="ScamReport Namibia Logo" fill className="object-contain" />
             </motion.div>
-            <h1 className="text-3xl font-bold text-primary mb-2">Welcome to ScamReport Namibia</h1>
+            <h1 className="text-3xl font-bold text-primary mb-2">Authentication Required</h1>
             <p className="text-gray-600 text-lg max-w-xl mx-auto">
-              Please select the appropriate login area to continue
+              Please sign in or create an account to access ScamReport Namibia
             </p>
           </div>
+
+          <Alert className="mb-8 bg-blue-50 border-blue-200">
+            <Lock className="h-5 w-5 text-blue-600" />
+            <AlertTitle className="text-blue-800">Authentication Required</AlertTitle>
+            <AlertDescription className="text-blue-700">
+              To protect our community and ensure the quality of reports, you must be signed in to access this
+              application.
+            </AlertDescription>
+          </Alert>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <motion.div
@@ -89,10 +101,29 @@ export default function AuthSelectionPage() {
                     </li>
                   </ul>
                   <div className="w-full space-y-3">
-                    <Button asChild className="w-full bg-primary text-white hover:bg-primary/90 h-12 text-lg">
+                    <Button
+                      asChild
+                      className="w-full bg-primary text-white hover:bg-primary/90 h-12 text-lg"
+                      onClick={() => {
+                        // Store the callback URL in localStorage to redirect after login
+                        if (typeof window !== "undefined") {
+                          localStorage.setItem("callbackUrl", callbackUrl)
+                        }
+                      }}
+                    >
                       <Link href="/login">Login as User</Link>
                     </Button>
-                    <Button asChild variant="outline" className="w-full h-12 text-lg">
+                    <Button
+                      asChild
+                      variant="outline"
+                      className="w-full h-12 text-lg"
+                      onClick={() => {
+                        // Store the callback URL in localStorage to redirect after registration
+                        if (typeof window !== "undefined") {
+                          localStorage.setItem("callbackUrl", callbackUrl)
+                        }
+                      }}
+                    >
                       <Link href="/register">Register New Account</Link>
                     </Button>
                   </div>
@@ -147,7 +178,16 @@ export default function AuthSelectionPage() {
                     </li>
                   </ul>
                   <div className="w-full">
-                    <Button asChild className="w-full bg-blue-800 text-white hover:bg-blue-900 h-12 text-lg">
+                    <Button
+                      asChild
+                      className="w-full bg-blue-800 text-white hover:bg-blue-900 h-12 text-lg"
+                      onClick={() => {
+                        // Store the callback URL in localStorage to redirect after login
+                        if (typeof window !== "undefined") {
+                          localStorage.setItem("callbackUrl", callbackUrl)
+                        }
+                      }}
+                    >
                       <Link href="/admin/login">Login to Admin Portal</Link>
                     </Button>
                   </div>

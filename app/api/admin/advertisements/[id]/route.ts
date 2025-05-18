@@ -1,64 +1,96 @@
 import { NextResponse } from "next/server"
 import { getAdvertisementById, updateAdvertisement, deleteAdvertisement } from "@/lib/db"
-import { getServerSession } from "next-auth/next"
-import { authOptions } from "@/lib/auth"
 
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   try {
-    // Check if user is admin
-    const session = await getServerSession(authOptions)
-    if (!session || session.user.role !== "admin") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const adId = Number.parseInt(params.id)
+
+    if (isNaN(adId)) {
+      return NextResponse.json({ success: false, message: "Invalid advertisement ID" }, { status: 400 })
     }
 
-    const id = Number.parseInt(params.id)
-    const advertisement = await getAdvertisementById(id)
+    const advertisement = await getAdvertisementById(adId)
 
     if (!advertisement) {
-      return NextResponse.json({ error: "Advertisement not found" }, { status: 404 })
+      return NextResponse.json({ success: false, message: "Advertisement not found" }, { status: 404 })
     }
 
-    return NextResponse.json({ advertisement })
+    return NextResponse.json({
+      success: true,
+      advertisement,
+    })
   } catch (error) {
     console.error("Error fetching advertisement:", error)
-    return NextResponse.json({ error: "Failed to fetch advertisement" }, { status: 500 })
+    return NextResponse.json({ success: false, message: "Failed to fetch advertisement" }, { status: 500 })
   }
 }
 
 export async function PUT(request: Request, { params }: { params: { id: string } }) {
   try {
-    // Check if user is admin
-    const session = await getServerSession(authOptions)
-    if (!session || session.user.role !== "admin") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    const id = Number.parseInt(params.id)
+    const adId = Number.parseInt(params.id)
     const data = await request.json()
 
-    await updateAdvertisement(id, data)
+    if (isNaN(adId)) {
+      return NextResponse.json({ success: false, message: "Invalid advertisement ID" }, { status: 400 })
+    }
 
-    return NextResponse.json({ message: "Advertisement updated successfully" })
+    // Validate required fields
+    if (
+      !data.title ||
+      !data.description ||
+      !data.sponsorName ||
+      !data.ctaText ||
+      !data.ctaLink ||
+      !data.advertiserEmail
+    ) {
+      return NextResponse.json({ success: false, message: "Missing required fields" }, { status: 400 })
+    }
+
+    // Update advertisement
+    await updateAdvertisement(adId, {
+      title: data.title,
+      description: data.description,
+      sponsorName: data.sponsorName,
+      ctaText: data.ctaText,
+      ctaLink: data.ctaLink,
+      discount: data.discount,
+      discountDescription: data.discountDescription,
+      imageUrl: data.imageUrl,
+      startDate: data.startDate,
+      endDate: data.endDate,
+      packageDuration: data.packageDuration,
+      advertiserEmail: data.advertiserEmail,
+      isActive: data.isActive,
+      recalculateEndDate: data.recalculateEndDate,
+    })
+
+    return NextResponse.json({
+      success: true,
+      message: "Advertisement updated successfully",
+    })
   } catch (error) {
     console.error("Error updating advertisement:", error)
-    return NextResponse.json({ error: "Failed to update advertisement" }, { status: 500 })
+    return NextResponse.json({ success: false, message: "Failed to update advertisement" }, { status: 500 })
   }
 }
 
 export async function DELETE(request: Request, { params }: { params: { id: string } }) {
   try {
-    // Check if user is admin
-    const session = await getServerSession(authOptions)
-    if (!session || session.user.role !== "admin") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const adId = Number.parseInt(params.id)
+
+    if (isNaN(adId)) {
+      return NextResponse.json({ success: false, message: "Invalid advertisement ID" }, { status: 400 })
     }
 
-    const id = Number.parseInt(params.id)
-    await deleteAdvertisement(id)
+    // Delete advertisement
+    await deleteAdvertisement(adId)
 
-    return NextResponse.json({ message: "Advertisement deleted successfully" })
+    return NextResponse.json({
+      success: true,
+      message: "Advertisement deleted successfully",
+    })
   } catch (error) {
     console.error("Error deleting advertisement:", error)
-    return NextResponse.json({ error: "Failed to delete advertisement" }, { status: 500 })
+    return NextResponse.json({ success: false, message: "Failed to delete advertisement" }, { status: 500 })
   }
 }

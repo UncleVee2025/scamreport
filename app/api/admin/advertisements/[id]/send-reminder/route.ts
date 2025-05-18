@@ -1,57 +1,69 @@
 import { NextResponse } from "next/server"
 import { getAdvertisementById } from "@/lib/db"
-import { sendEmail } from "@/lib/email"
-import { getServerSession } from "next-auth/next"
-import { authOptions } from "@/lib/auth"
-import { format, differenceInDays } from "date-fns"
+import nodemailer from "nodemailer"
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   try {
-    // Check if user is admin
-    const session = await getServerSession(authOptions)
-    if (!session || session.user.role !== "admin") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const adId = Number.parseInt(params.id)
+
+    if (isNaN(adId)) {
+      return NextResponse.json({ success: false, message: "Invalid advertisement ID" }, { status: 400 })
     }
 
-    const id = Number.parseInt(params.id)
-    const advertisement = await getAdvertisementById(id)
+    // Get advertisement details
+    const advertisement = await getAdvertisementById(adId)
 
     if (!advertisement) {
-      return NextResponse.json({ error: "Advertisement not found" }, { status: 404 })
+      return NextResponse.json({ success: false, message: "Advertisement not found" }, { status: 404 })
     }
 
-    const endDate = new Date(advertisement.end_date)
-    const today = new Date()
-    const daysRemaining = differenceInDays(endDate, today)
+    // Create email transporter
+    const transporter = nodemailer.createTransport({
+      host: "smtp.gmail.com",
+      port: 587,
+      secure: false,
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASSWORD,
+      },
+    })
 
-    // Send reminder email
-    await sendEmail({
+    // Calculate days remaining
+    const endDate = new Date(advertisement.end_date)
+    const now = new Date()
+    const diffTime = endDate.getTime() - now.getTime()
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+    // Send email
+    await transporter.sendMail({
+      from: `"ScamReport Namibia" <${process.env.EMAIL_USER}>`,
       to: advertisement.advertiser_email,
-      subject: `Your advertisement will expire in ${daysRemaining} days`,
-      text: `
-        Dear ${advertisement.sponsor_name},
-        
-        Your advertisement "${advertisement.title}" on ScamReport Namibia will expire in ${daysRemaining} days on ${format(endDate, "MMMM dd, yyyy")}.
-        
-        If you would like to renew your advertisement, please contact us or visit our website.
-        
-        Thank you for advertising with us.
-        
-        Best regards,
-        ScamReport Namibia Team
-      `,
+      subject: `Your Advertisement on ScamReport Namibia - ${diffDays} Days Remaining`,
       html: `
-        <p>Dear ${advertisement.sponsor_name},</p>
-        <p>Your advertisement "${advertisement.title}" on ScamReport Namibia will expire in ${daysRemaining} days on ${format(endDate, "MMMM dd, yyyy")}.</p>
-        <p>If you would like to renew your advertisement, please contact us or visit our website.</p>
-        <p>Thank you for advertising with us.</p>
-        <p>Best regards,<br>ScamReport Namibia Team</p>
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2>Your Advertisement is Expiring Soon</h2>
+          <p>Dear ${advertisement.sponsor_name},</p>
+          <p>Your advertisement "${advertisement.title}" on ScamReport Namibia will expire in <strong>${diffDays} days</strong>.</p>
+          <p><strong>Advertisement Details:</strong></p>
+          <ul>
+            <li>Title: ${advertisement.title}</li>
+            <li>Start Date: ${new Date(advertisement.start_date).toLocaleDateString()}</li>
+            <li>End Date: ${new Date(advertisement.end_date).toLocaleDateString()}</li>
+            <li>Package: ${advertisement.package_duration}</li>
+          </ul>
+          <p>If you would like to renew your advertisement, please contact us or visit our website.</p>
+          <p>Thank you for supporting ScamReport Namibia.</p>
+          <p>Best regards,<br>ScamReport Namibia Team</p>
+        </div>
       `,
     })
 
-    return NextResponse.json({ message: "Reminder sent successfully" })
+    return NextResponse.json({
+      success: true,
+      message: "Reminder email sent successfully",
+    })
   } catch (error) {
-    console.error("Error sending reminder:", error)
-    return NextResponse.json({ error: "Failed to send reminder" }, { status: 500 })
+    console.error("Error sending reminder email:", error)
+    return NextResponse.json({ success: false, message: "Failed to send reminder email" }, { status: 500 })
   }
 }

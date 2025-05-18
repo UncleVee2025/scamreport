@@ -42,12 +42,17 @@ export default function ReportPage() {
   })
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value, type } = e.target
-    const checked = (e.target as HTMLInputElement).checked
-
+    const { name, value } = e.target
     setFormData({
       ...formData,
-      [name]: type === "checkbox" ? checked : value,
+      [name]: value,
+    })
+  }
+
+  const handleCheckboxChange = (name: string, checked: boolean) => {
+    setFormData({
+      ...formData,
+      [name]: checked,
     })
   }
 
@@ -82,13 +87,31 @@ export default function ReportPage() {
     setIsLoading(true)
 
     try {
-      // In a real app, this would be an actual API call to submit the report
-      // const response = await fetch('/api/scams', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(formData)
-      // })
-      // const data = await response.json()
+      // Create a FormData object to handle file uploads
+      const submitData = new FormData()
+
+      // Add all form fields to FormData
+      Object.entries(formData).forEach(([key, value]) => {
+        if (key === "evidence" && value) {
+          submitData.append("evidence", value)
+        } else if (typeof value !== "object") {
+          submitData.append(key, String(value))
+        }
+      })
+
+      submitData.append("reportType", reportType || "")
+
+      // In a real app, this would be an actual API call
+      const response = await fetch("/api/scams", {
+        method: "POST",
+        body: submitData,
+      })
+
+      const data = await response.json()
+
+      if (!data.success) {
+        throw new Error(data.message || "Failed to submit report")
+      }
 
       // Send email notification
       await fetch("/api/email", {
@@ -98,7 +121,7 @@ export default function ReportPage() {
         },
         body: JSON.stringify({
           to: "scamreportnam@popya.org",
-          subject: `New Scam Report: ${formData.title || formData.scammerName}`,
+          subject: `New Scam Report: ${formData.scammerName}`,
           text: `A new scam report has been submitted:
             
 Type: ${reportType}
@@ -115,15 +138,13 @@ Police Case: ${formData.policeCase || "N/A"}`,
         }),
       })
 
-      // Simulate successful submission
-      setTimeout(() => {
-        setIsLoading(false)
-        toast({
-          title: "Report submitted successfully",
-          description: "Thank you for helping make Namibia safer from scams.",
-        })
-        router.push("/dashboard/report-success")
-      }, 1500)
+      toast({
+        title: "Report submitted successfully",
+        description: "Thank you for helping make Namibia safer from scams.",
+      })
+
+      // Redirect to success page
+      router.push("/dashboard/report-success")
     } catch (error) {
       console.error("Error submitting report:", error)
       setIsLoading(false)
@@ -537,10 +558,9 @@ Police Case: ${formData.policeCase || "N/A"}`,
                         <div className="flex items-start space-x-3">
                           <Checkbox
                             id="isAnonymous"
-                            name="isAnonymous"
                             checked={formData.isAnonymous}
-                            onCheckedChange={(checked) => setFormData({ ...formData, isAnonymous: checked as boolean })}
-                            className="mt-1"
+                            onCheckedChange={(checked) => handleCheckboxChange("isAnonymous", checked as boolean)}
+                            className="mt-1 h-5 w-5 rounded border-2 border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
                           />
                           <Label htmlFor="isAnonymous" className="text-sm text-gray-700">
                             Remain Anonymous (your personal details will not be visible to other users)
@@ -550,12 +570,9 @@ Police Case: ${formData.policeCase || "N/A"}`,
                         <div className="flex items-start space-x-3">
                           <Checkbox
                             id="allowComments"
-                            name="allowComments"
                             checked={formData.allowComments}
-                            onCheckedChange={(checked) =>
-                              setFormData({ ...formData, allowComments: checked as boolean })
-                            }
-                            className="mt-1"
+                            onCheckedChange={(checked) => handleCheckboxChange("allowComments", checked as boolean)}
+                            className="mt-1 h-5 w-5 rounded border-2 border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
                           />
                           <Label htmlFor="allowComments" className="text-sm text-gray-700">
                             Allow Public Comments (other users can comment on your report)
@@ -672,10 +689,9 @@ Police Case: ${formData.policeCase || "N/A"}`,
                       <div className="flex items-start space-x-3 pt-2">
                         <Checkbox
                           id="legalConsent"
-                          name="legalConsent"
                           checked={formData.legalConsent}
-                          onCheckedChange={(checked) => setFormData({ ...formData, legalConsent: checked as boolean })}
-                          className="mt-1"
+                          onCheckedChange={(checked) => handleCheckboxChange("legalConsent", checked as boolean)}
+                          className="mt-1 h-5 w-5 rounded border-2 border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
                         />
                         <Label htmlFor="legalConsent" className="text-sm text-gray-700">
                           I confirm that the information provided is true and accurate to the best of my knowledge. I

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 import { query } from "@/lib/db"
+import { writeFile } from "fs/promises"
+import { join } from "path"
 
 // Get all scams
 export async function GET(request: Request) {
@@ -57,51 +59,75 @@ export async function GET(request: Request) {
 // Create a new scam report
 export async function POST(request: Request) {
   try {
-    const data = await request.json()
-    const {
-      userId,
-      category,
-      title,
-      description,
-      scammerName,
-      dateOfIncident,
-      location,
-      moneyInvolved,
-      amountScammed,
-      whatWasScammed,
-      policeCase,
-      isAnonymous,
-      allowComments,
-    } = data
+    // Handle form data for file uploads
+    const formData = await request.formData()
+
+    // Extract data from form
+    const userId = formData.get("userId") || "1" // Default to user 1 for demo
+    const reportType = formData.get("reportType") as string
+    const category = formData.get("category") as string
+    const title = formData.get("scammerName") as string // Use scammer name as title
+    const description = formData.get("description") as string
+    const scammerName = formData.get("scammerName") as string
+    const dateOfIncident = formData.get("date") as string
+    const location = formData.get("location") as string
+    const moneyInvolved = formData.get("moneyInvolved") === "yes"
+    const amountScammed = formData.get("amountScammed") as string
+    const whatWasScammed = formData.get("whatWasScammed") as string
+    const policeCase = formData.get("policeCase") as string
+    const isAnonymous = formData.get("isAnonymous") === "true"
+    const allowComments = formData.get("allowComments") === "true"
+    const evidence = formData.get("evidence") as File | null
 
     // Validate required fields
-    if (!userId || !category || !title || !description || !scammerName) {
+    if (!category || !title || !description || !scammerName) {
       return NextResponse.json({ success: false, message: "Missing required fields" }, { status: 400 })
     }
 
+    // Handle file upload if evidence is provided
+    let evidenceUrl = null
+    if (evidence) {
+      const fileExtension = evidence.name.split(".").pop()
+      const fileName = `evidence-${Date.now()}.${fileExtension}`
+      const filePath = `/uploads/evidence/${fileName}`
+      const fullPath = join(process.cwd(), "public", filePath)
+
+      // Convert the file to an ArrayBuffer
+      const bytes = await evidence.arrayBuffer()
+      const buffer = Buffer.from(bytes)
+
+      // Save the file
+      await writeFile(fullPath, buffer)
+      evidenceUrl = filePath
+    }
+
+    // Insert into database
     const sql = `
       INSERT INTO scam_reports (
         user_id, 
-        category, 
         title, 
         description, 
+        type, 
+        category,
         scammer_name, 
-        date_of_incident, 
+        date_occurred, 
         location, 
         money_involved, 
-        amount_scammed, 
+        amount_lost, 
         what_was_scammed, 
         police_case, 
+        evidence_url,
         is_anonymous, 
         allow_comments
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `
 
     const params = [
       userId,
-      category,
       title,
       description,
+      reportType,
+      category,
       scammerName,
       dateOfIncident || null,
       location || null,
@@ -109,6 +135,7 @@ export async function POST(request: Request) {
       amountScammed || null,
       whatWasScammed || null,
       policeCase || null,
+      evidenceUrl,
       isAnonymous ? 1 : 0,
       allowComments ? 1 : 0,
     ]

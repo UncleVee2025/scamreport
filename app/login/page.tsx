@@ -2,8 +2,8 @@
 
 import type React from "react"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { motion } from "framer-motion"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
@@ -12,17 +12,36 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ArrowLeft, Lock, Mail, Eye, EyeOff } from "lucide-react"
 import Link from "next/link"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export default function Login() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState("")
+  const [callbackUrl, setCallbackUrl] = useState("/dashboard")
+
+  useEffect(() => {
+    // Get callback URL from query params or localStorage
+    const urlCallbackUrl = searchParams.get("callbackUrl")
+    const storedCallbackUrl = typeof window !== "undefined" ? localStorage.getItem("callbackUrl") : null
+
+    if (urlCallbackUrl) {
+      setCallbackUrl(urlCallbackUrl)
+    } else if (storedCallbackUrl) {
+      setCallbackUrl(storedCallbackUrl)
+      // Clear from localStorage after using it
+      localStorage.removeItem("callbackUrl")
+    }
+  }, [searchParams])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
+    setError("")
 
     try {
       // Simulate API call to backend
@@ -50,18 +69,18 @@ export default function Login() {
           }),
         })
 
-        // Redirect based on user role
+        // Redirect based on user role or callback URL
         if (data.user.role === "admin") {
           router.push("/admin/dashboard")
         } else {
-          router.push("/dashboard")
+          router.push(callbackUrl || "/dashboard")
         }
       } else {
-        alert(data.message || "Login failed. Please check your credentials.")
+        setError(data.message || "Login failed. Please check your credentials.")
       }
     } catch (error) {
       console.error("Login error:", error)
-      alert("An error occurred during login. Please try again.")
+      setError("An error occurred during login. Please try again.")
     } finally {
       setIsLoading(false)
     }
@@ -70,7 +89,7 @@ export default function Login() {
   return (
     <div className="min-h-screen bg-blue-50 flex flex-col">
       <header className="p-4">
-        <Button variant="ghost" size="icon" onClick={() => router.push("/")} className="text-primary">
+        <Button variant="ghost" size="icon" onClick={() => router.push("/auth")} className="text-primary">
           <ArrowLeft className="h-6 w-6" />
         </Button>
       </header>
@@ -90,11 +109,17 @@ export default function Login() {
               transition={{ duration: 0.5, type: "spring" }}
               whileHover={{ rotate: 5 }}
             >
-              <Image src="/logo.png" alt="ScamReport Namibia Logo" fill className="object-contain" />
+              <Image src="/images/logo.png" alt="ScamReport Namibia Logo" fill className="object-contain" />
             </motion.div>
             <h1 className="text-2xl font-bold text-primary">Welcome Back</h1>
             <p className="text-gray-600 mt-1">Login to continue your fight against cybercrime</p>
           </div>
+
+          {error && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
           <motion.div
             className="bg-white rounded-2xl shadow-xl p-6 mb-6"

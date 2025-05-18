@@ -2,8 +2,8 @@
 
 import type React from "react"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { motion } from "framer-motion"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
@@ -15,13 +15,17 @@ import Link from "next/link"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export default function Register() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [step, setStep] = useState(1)
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [termsDialogOpen, setTermsDialogOpen] = useState(false)
+  const [error, setError] = useState("")
+  const [callbackUrl, setCallbackUrl] = useState("/dashboard")
   const [formData, setFormData] = useState({
     fullName: "",
     idNumber: "",
@@ -36,6 +40,20 @@ export default function Register() {
     selfieImage: null as File | null,
     agreeTerms: false,
   })
+
+  useEffect(() => {
+    // Get callback URL from query params or localStorage
+    const urlCallbackUrl = searchParams.get("callbackUrl")
+    const storedCallbackUrl = typeof window !== "undefined" ? localStorage.getItem("callbackUrl") : null
+
+    if (urlCallbackUrl) {
+      setCallbackUrl(urlCallbackUrl)
+    } else if (storedCallbackUrl) {
+      setCallbackUrl(storedCallbackUrl)
+      // Clear from localStorage after using it
+      localStorage.removeItem("callbackUrl")
+    }
+  }, [searchParams])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target
@@ -66,19 +84,68 @@ export default function Register() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setError("")
 
     if (!formData.agreeTerms) {
-      alert("You must agree to the Terms and Conditions to continue.")
+      setError("You must agree to the Terms and Conditions to continue.")
+      return
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      setError("Passwords do not match.")
       return
     }
 
     setIsLoading(true)
 
-    // Simulate OTP verification
-    setTimeout(() => {
+    try {
+      // Create form data for file upload
+      const registerData = new FormData()
+      registerData.append("fullName", formData.fullName)
+      registerData.append("surname", formData.surname)
+      registerData.append("idNumber", formData.idNumber)
+      registerData.append("username", formData.username)
+      registerData.append("contactNumber", formData.contactNumber)
+      registerData.append("email", formData.email)
+      registerData.append("password", formData.password)
+
+      if (formData.frontIdImage) {
+        registerData.append("frontIdImage", formData.frontIdImage)
+      }
+
+      if (formData.backIdImage) {
+        registerData.append("backIdImage", formData.backIdImage)
+      }
+
+      if (formData.selfieImage) {
+        registerData.append("selfieImage", formData.selfieImage)
+      }
+
+      // Submit registration data
+      const response = await fetch("/api/register", {
+        method: "POST",
+        body: registerData,
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        // Redirect to OTP verification
+        router.push(
+          "/otp-verification?email=" +
+            encodeURIComponent(formData.email) +
+            "&callbackUrl=" +
+            encodeURIComponent(callbackUrl),
+        )
+      } else {
+        setError(data.error || "Registration failed. Please try again.")
+      }
+    } catch (error) {
+      console.error("Registration error:", error)
+      setError("An error occurred during registration. Please try again.")
+    } finally {
       setIsLoading(false)
-      router.push("/otp-verification")
-    }, 1500)
+    }
   }
 
   return (
@@ -87,7 +154,7 @@ export default function Register() {
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => (step === 1 ? router.push("/") : handlePrevStep())}
+          onClick={() => (step === 1 ? router.push("/auth") : handlePrevStep())}
           className="text-primary"
         >
           <ArrowLeft className="h-6 w-6" />
@@ -135,6 +202,12 @@ export default function Register() {
               />
             </div>
           </div>
+
+          {error && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
           <motion.div
             key={`step-${step}`}

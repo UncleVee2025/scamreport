@@ -1,281 +1,241 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { motion } from "framer-motion"
-import { Search, AlertTriangle, Phone, Mail, User, Calendar } from "lucide-react"
-import { Input } from "@/components/ui/input"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ScamCard } from "@/components/scam-card"
+import { AdSpace } from "@/components/ad-space"
+import { Search, Filter, AlertTriangle, Sparkles } from "lucide-react"
+import { toast } from "@/components/ui/use-toast"
 import { LoadingSpinner } from "@/components/loading-spinner"
-import { BottomNavigation } from "@/components/bottom-navigation"
-import Link from "next/link"
-
-// Demo scam data
-const DEMO_SCAMS = [
-  {
-    id: "scam1",
-    title: "Fake Job Offer Scam",
-    category: "Employment",
-    date: "2023-05-15",
-    description: "Scammers offering fake job opportunities and requesting payment for training or equipment.",
-    contact: {
-      type: "email",
-      value: "jobs@fakecareers.com",
-    },
-    reportCount: 24,
-    status: "Verified",
-  },
-  {
-    id: "scam2",
-    title: "Banking SMS Phishing",
-    category: "Banking",
-    date: "2023-06-02",
-    description: "SMS messages claiming to be from banks requesting verification of account details.",
-    contact: {
-      type: "phone",
-      value: "081234567",
-    },
-    reportCount: 56,
-    status: "Verified",
-  },
-  {
-    id: "scam3",
-    title: "Online Shopping Scam",
-    category: "E-commerce",
-    date: "2023-06-10",
-    description: "Fake online store collecting payments without delivering products.",
-    contact: {
-      type: "website",
-      value: "amazingdeals.fake.com",
-    },
-    reportCount: 18,
-    status: "Under Review",
-  },
-  {
-    id: "scam4",
-    title: "Cryptocurrency Investment Fraud",
-    category: "Investment",
-    date: "2023-06-15",
-    description: "Fraudulent investment scheme promising unrealistic returns on cryptocurrency investments.",
-    contact: {
-      type: "name",
-      value: "John Scammer",
-    },
-    reportCount: 42,
-    status: "Verified",
-  },
-  {
-    id: "scam5",
-    title: "Rental Property Scam",
-    category: "Real Estate",
-    date: "2023-06-20",
-    description: "Fake rental listings requesting deposits for properties that don't exist or aren't available.",
-    contact: {
-      type: "phone",
-      value: "0812345678",
-    },
-    reportCount: 15,
-    status: "Verified",
-  },
-  {
-    id: "scam6",
-    title: "Tech Support Scam",
-    category: "Technology",
-    date: "2023-06-25",
-    description: "Callers claiming to be from tech companies offering to fix non-existent computer problems.",
-    contact: {
-      type: "phone",
-      value: "0811234567",
-    },
-    reportCount: 31,
-    status: "Verified",
-  },
-]
 
 export default function ExploreScamsPage() {
-  const [scams, setScams] = useState(DEMO_SCAMS)
+  const [scams, setScams] = useState([])
+  const [displayItems, setDisplayItems] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
-  const [categoryFilter, setCategoryFilter] = useState("all")
-  const [sortBy, setSortBy] = useState("date")
+  const [activeTab, setActiveTab] = useState("all")
+  const [page, setPage] = useState(1)
+  const [hasMore, setHasMore] = useState(true)
+  const [isFetchingMore, setIsFetchingMore] = useState(false)
+  const [isAISearching, setIsAISearching] = useState(false)
+  const observer = useRef<IntersectionObserver | null>(null)
+  const lastScamElementRef = useCallback(
+    (node) => {
+      if (isLoading || isFetchingMore) return
+      if (observer.current) observer.current.disconnect()
+      observer.current = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting && hasMore) {
+          loadMoreScams()
+        }
+      })
+      if (node) observer.current.observe(node)
+    },
+    [isLoading, isFetchingMore, hasMore],
+  )
 
   useEffect(() => {
-    // Simulate loading data
-    const timer = setTimeout(() => {
+    fetchScams()
+  }, [activeTab])
+
+  // Process scams and insert ads after every 10 items
+  useEffect(() => {
+    const items = []
+    scams.forEach((scam, index) => {
+      items.push({ type: "scam", data: scam })
+      // Insert ad after every 10 scams
+      if ((index + 1) % 10 === 0) {
+        items.push({ type: "ad", data: null })
+      }
+    })
+    setDisplayItems(items)
+  }, [scams])
+
+  const fetchScams = async () => {
+    setIsLoading(true)
+    try {
+      const response = await fetch(`/api/scams?page=1&limit=10&type=${activeTab === "all" ? "" : activeTab}`)
+      const data = await response.json()
+
+      if (data.scams) {
+        setScams(data.scams)
+        setHasMore(data.scams.length === 10)
+        setPage(1)
+      }
+    } catch (error) {
+      console.error("Error fetching scams:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load scams. Please try again later.",
+        variant: "destructive",
+      })
+    } finally {
       setIsLoading(false)
-    }, 1000)
+    }
+  }
 
-    return () => clearTimeout(timer)
-  }, [])
+  const loadMoreScams = async () => {
+    if (isFetchingMore || !hasMore) return
 
-  // Filter and sort scams
-  const filteredScams = scams
-    .filter((scam) => {
-      // Apply category filter
-      if (categoryFilter !== "all" && scam.category !== categoryFilter) {
-        return false
+    setIsFetchingMore(true)
+    try {
+      const nextPage = page + 1
+      const response = await fetch(`/api/scams?page=${nextPage}&limit=10&type=${activeTab === "all" ? "" : activeTab}`)
+      const data = await response.json()
+
+      if (data.scams && data.scams.length > 0) {
+        setScams((prevScams) => [...prevScams, ...data.scams])
+        setHasMore(data.scams.length === 10)
+        setPage(nextPage)
+      } else {
+        setHasMore(false)
       }
+    } catch (error) {
+      console.error("Error loading more scams:", error)
+    } finally {
+      setIsFetchingMore(false)
+    }
+  }
 
-      // Apply search filter
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase()
-        return (
-          scam.title.toLowerCase().includes(query) ||
-          scam.description.toLowerCase().includes(query) ||
-          scam.contact.value.toLowerCase().includes(query)
-        )
+  const handleSearch = async (e) => {
+    e.preventDefault()
+    if (!searchQuery.trim()) return
+
+    setIsAISearching(true)
+    try {
+      // First try regular search
+      const response = await fetch(`/api/scams/search?query=${encodeURIComponent(searchQuery)}`)
+      const data = await response.json()
+
+      if (data.scams && data.scams.length > 0) {
+        setScams(data.scams)
+      } else {
+        // If no results, try AI-powered search
+        const aiResponse = await fetch(`/api/ai/search?query=${encodeURIComponent(searchQuery)}`)
+        const aiData = await aiResponse.json()
+
+        if (aiData.scams && aiData.scams.length > 0) {
+          setScams(aiData.scams)
+          toast({
+            title: "AI Search Results",
+            description: "We used AI to find semantically similar scams based on your query.",
+            duration: 5000,
+          })
+        } else {
+          setScams([])
+          toast({
+            title: "No results found",
+            description: `No scams matching "${searchQuery}" were found.`,
+            variant: "destructive",
+          })
+        }
       }
-
-      return true
-    })
-    .sort((a, b) => {
-      // Apply sorting
-      if (sortBy === "date") {
-        return new Date(b.date).getTime() - new Date(a.date).getTime()
-      } else if (sortBy === "reports") {
-        return b.reportCount - a.reportCount
-      }
-      return 0
-    })
-
-  const categories = ["Employment", "Banking", "E-commerce", "Investment", "Real Estate", "Technology"]
-
-  return (
-    <div className="container max-w-4xl mx-auto px-4 py-8 pb-24">
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-        <h1 className="text-2xl font-bold text-center mb-6">Explore Reported Scams</h1>
-
-        {/* Search and Filter */}
-        <Card className="mb-8">
-          <CardContent className="pt-6">
-            <div className="space-y-4">
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Search className="h-5 w-5 text-gray-500" />
-                </div>
-                <Input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search scams..."
-                  className="pl-10 border-2 border-gray-300 h-12"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                  <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                    <SelectTrigger className="border-2 border-gray-300 h-12">
-                      <SelectValue placeholder="All Categories" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Categories</SelectItem>
-                      {categories.map((category) => (
-                        <SelectItem key={category} value={category}>
-                          {category}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Sort By</label>
-                  <Select value={sortBy} onValueChange={setSortBy}>
-                    <SelectTrigger className="border-2 border-gray-300 h-12">
-                      <SelectValue placeholder="Sort by" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="date">Most Recent</SelectItem>
-                      <SelectItem value="reports">Most Reported</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Results */}
-        {isLoading ? (
-          <div className="flex justify-center my-12">
-            <LoadingSpinner size="lg" />
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {filteredScams.length > 0 ? (
-              <>
-                <p className="text-gray-600 mb-4">{filteredScams.length} scams found</p>
-                {filteredScams.map((scam) => (
-                  <ScamCard key={scam.id} scam={scam} />
-                ))}
-              </>
-            ) : (
-              <div className="text-center py-12">
-                <AlertTriangle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
-                <h3 className="text-xl font-bold text-gray-800 mb-2">No Scams Found</h3>
-                <p className="text-gray-600">Try adjusting your search or filters</p>
-              </div>
-            )}
-          </div>
-        )}
-      </motion.div>
-
-      {/* Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0">
-        <BottomNavigation />
-      </div>
-    </div>
-  )
-}
-
-function ScamCard({ scam }: { scam: any }) {
-  const getContactIcon = () => {
-    switch (scam.contact.type) {
-      case "phone":
-        return <Phone className="h-4 w-4" />
-      case "email":
-        return <Mail className="h-4 w-4" />
-      case "name":
-        return <User className="h-4 w-4" />
-      default:
-        return <AlertTriangle className="h-4 w-4" />
+    } catch (error) {
+      console.error("Search error:", error)
+      toast({
+        title: "Search error",
+        description: "An error occurred while searching. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsAISearching(false)
     }
   }
 
   return (
-    <Link href={`/dashboard/scam/${scam.id}`}>
-      <Card className="hover:shadow-md transition-shadow">
-        <CardContent className="p-6">
-          <div className="flex items-start justify-between">
-            <div>
-              <h3 className="text-lg font-bold text-gray-800 mb-2">{scam.title}</h3>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium">{scam.category}</span>
-                <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs font-medium">
-                  {scam.status}
-                </span>
-              </div>
-              <p className="text-gray-600 text-sm mb-4">{scam.description}</p>
+    <div className="container max-w-4xl mx-auto px-4 py-8 pb-24">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl font-bold">Explore Scam Reports</h1>
+          <p className="text-gray-500">Browse and search through reported scams</p>
+        </div>
+      </div>
 
-              <div className="flex flex-wrap gap-4 text-sm text-gray-500">
-                <div className="flex items-center gap-1">
-                  {getContactIcon()}
-                  <span>{scam.contact.value}</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Calendar className="h-4 w-4" />
-                  <span>{new Date(scam.date).toLocaleDateString()}</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <AlertTriangle className="h-4 w-4" />
-                  <span>{scam.reportCount} reports</span>
-                </div>
-              </div>
+      <form onSubmit={handleSearch} className="relative mb-6">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+        <Input
+          type="search"
+          placeholder="Search scam reports..."
+          className="pl-10 pr-16 py-2"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+        <Button
+          type="submit"
+          className="absolute right-1 top-1/2 transform -translate-y-1/2 h-8 px-3 flex items-center gap-1"
+          disabled={isAISearching || !searchQuery.trim()}
+        >
+          {isAISearching ? (
+            <LoadingSpinner size="xs" />
+          ) : (
+            <>
+              <Sparkles className="h-3 w-3" />
+              <span>AI Search</span>
+            </>
+          )}
+        </Button>
+      </form>
+
+      <Tabs defaultValue="all" className="w-full" onValueChange={setActiveTab}>
+        <div className="flex justify-between items-center mb-4">
+          <TabsList>
+            <TabsTrigger value="all">All</TabsTrigger>
+            <TabsTrigger value="phishing">Phishing</TabsTrigger>
+            <TabsTrigger value="phone">Phone</TabsTrigger>
+            <TabsTrigger value="investment">Investment</TabsTrigger>
+          </TabsList>
+          <Button variant="outline" size="sm" className="flex items-center gap-1">
+            <Filter className="h-4 w-4" />
+            <span>Filter</span>
+          </Button>
+        </div>
+
+        <TabsContent value={activeTab} className="mt-0">
+          {isLoading ? (
+            <div className="flex justify-center items-center py-12">
+              <LoadingSpinner size="lg" />
             </div>
-          </div>
-        </CardContent>
-      </Card>
-    </Link>
+          ) : displayItems.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <AlertTriangle className="h-12 w-12 text-gray-300 mb-4" />
+                <h3 className="text-xl font-medium text-gray-700">No scams found</h3>
+                <p className="text-gray-500 mt-1">
+                  {searchQuery
+                    ? `No results found for "${searchQuery}"`
+                    : "There are no scam reports in this category yet."}
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {displayItems.map((item, index) => {
+                if (item.type === "ad") {
+                  return <AdSpace key={`ad-${index}`} variant="card" showDemo={true} />
+                }
+
+                const scam = item.data
+                if (displayItems.length === index + 1) {
+                  return (
+                    <div ref={lastScamElementRef} key={scam.id}>
+                      <ScamCard scam={scam} />
+                    </div>
+                  )
+                } else {
+                  return <ScamCard key={scam.id} scam={scam} />
+                }
+              })}
+              {isFetchingMore && (
+                <div className="flex justify-center py-4">
+                  <LoadingSpinner size="md" />
+                </div>
+              )}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+    </div>
   )
 }

@@ -21,7 +21,7 @@ export const metadata = {
     title: "ScamReport Namibia - Report Scams & Cybercrime",
     description: "Report online scams, cybercrime, phishing schemes, and online bullying in Namibia",
   },
-    generator: 'v0.dev'
+  generator: "v0.dev",
 }
 
 export default function RootLayout({
@@ -32,5 +32,4 @@ export default function RootLayout({
   return <ClientLayout>{children}</ClientLayout>
 }
 
-
-import './globals.css'
+import "./globals.css"

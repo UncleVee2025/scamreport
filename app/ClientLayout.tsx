@@ -1,55 +1,43 @@
 "use client"
 
 import type React from "react"
-import { useEffect } from "react"
-import { Inter } from "next/font/google"
+
+import { useEffect, useState } from "react"
+import { Toaster } from "@/components/ui/toaster"
+import { BottomNavigation } from "@/components/bottom-navigation"
+import { AppHeader } from "@/components/app-header"
 import { ThemeProvider } from "@/components/theme-provider"
-import { ToastProvider } from "@/components/ui/use-toast"
-import { ErrorBoundary } from "@/components/error-boundary"
-import { Analytics } from "@/components/analytics"
-import "./globals.css"
-import { Suspense } from "react"
+import { usePathname } from "next/navigation"
 
-const inter = Inter({ subsets: ["latin"] })
+export default function ClientLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname()
+  const [mounted, setMounted] = useState(false)
 
-export default function ClientLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode
-}>) {
+  // Avoid hydration mismatch
   useEffect(() => {
-    // Register service worker
-    if ("serviceWorker" in navigator) {
-      window.addEventListener("load", () => {
-        navigator.serviceWorker.register("/service-worker.js").catch((err) => {
-          console.error("Service worker registration failed:", err)
-        })
-      })
-    }
+    setMounted(true)
   }, [])
 
+  // Don't show header and bottom nav on login and register pages
+  const isAuthPage =
+    pathname === "/login" ||
+    pathname === "/register" ||
+    pathname === "/reset-password" ||
+    pathname === "/new-password" ||
+    pathname === "/otp-verification"
+
+  if (!mounted) {
+    return null
+  }
+
   return (
-    <html lang="en" suppressHydrationWarning>
-      <head>
-        <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="theme-color" content="#0ea5e9" />
-        <link rel="manifest" href="/manifest.json" />
-        <link rel="icon" href="/favicon.ico" />
-        <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
-      </head>
-      <body className={`${inter.className} min-h-screen bg-gradient-to-b from-background to-background/80`}>
-        <ErrorBoundary>
-          <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
-            <ToastProvider>
-              <Suspense>
-                {children}
-                <Analytics />
-              </Suspense>
-            </ToastProvider>
-          </ThemeProvider>
-        </ErrorBoundary>
-      </body>
-    </html>
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+      <div className="min-h-screen flex flex-col bg-background text-foreground">
+        {!isAuthPage && <AppHeader />}
+        <main className="flex-1">{children}</main>
+        {!isAuthPage && <BottomNavigation />}
+        <Toaster />
+      </div>
+    </ThemeProvider>
   )
 }

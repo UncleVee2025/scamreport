@@ -90,7 +90,7 @@ export default function Login() {
               transition={{ duration: 0.5, type: "spring" }}
               whileHover={{ rotate: 5 }}
             >
-              <Image src="/images/logo.png" alt="ScamReport Namibia Logo" fill className="object-contain" />
+              <Image src="/logo.png" alt="ScamReport Namibia Logo" fill className="object-contain" />
             </motion.div>
             <h1 className="text-2xl font-bold text-primary">Welcome Back</h1>
             <p className="text-gray-600 mt-1">Login to continue your fight against cybercrime</p>
@@ -126,7 +126,7 @@ export default function Login() {
                   <Label htmlFor="password" className="text-gray-700">
                     Password
                   </Label>
-                  <Link href="/forgot-password" className="text-sm text-primary hover:underline">
+                  <Link href="/reset-password" className="text-sm text-primary hover:underline">
                     Forgot Password?
                   </Link>
                 </div>
@@ -195,7 +195,7 @@ export default function Login() {
             </p>
 
             <div className="mt-6 pt-6 border-t border-gray-200">
-              <div className="flex justify-center space-x-4 text-sm text-gray-500">
+              <div className="flex justify-center space-x-4 text-sm text-gray-500 mb-4">
                 <Link href="/terms" className="hover:text-primary hover:underline">
                   Terms of Service
                 </Link>
@@ -206,6 +206,18 @@ export default function Login() {
                   Help Center
                 </Link>
               </div>
+
+              <p className="text-gray-600 font-medium">
+                Proudly powered by{" "}
+                <a
+                  href="https://www.popya.org"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  Popya Assistance Foundation
+                </a>
+              </p>
             </div>
           </motion.div>
         </motion.div>

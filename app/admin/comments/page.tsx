@@ -1,619 +1,456 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Badge } from "@/components/ui/badge"
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
-import { Search, Filter, CheckCircle, X, Eye, MessageSquare, Flag, ThumbsUp } from "lucide-react"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { toast } from "@/components/ui/use-toast"
+import { Loader2, CheckCircle, XCircle, AlertTriangle, Search, RefreshCw } from "lucide-react"
+import { handleApiError } from "@/lib/error-handler"
+import { logger, trackAdminAction } from "@/lib/logger"
+import { useNewComments } from "@/lib/socket-service"
 
-export default function CommentsPage() {
-  const [searchQuery, setSearchQuery] = useState("")
-  const [filterStatus, setFilterStatus] = useState("all")
-  const [isLoading, setIsLoading] = useState(true)
-  const [comments, setComments] = useState([])
+interface Comment {
+  id: number
+  report_id: number
+  user_id: number
+  comment: string
+  status: "approved" | "pending" | "flagged" | "rejected"
+  sentiment_score: number
+  ai_moderated: boolean
+  created_at: string
+  updated_at: string
+  user_name?: string
+  report_title?: string
+}
 
+export default function AdminCommentsPage() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const { newComments, resetCounter } = useNewComments()
+
+  // State
+  const [comments, setComments] = useState<Comment[]>([])
+  const [loading, setLoading] = useState(true)
+  const [selectedComments, setSelectedComments] = useState<number[]>([])
+  const [selectAll, setSelectAll] = useState(false)
+  const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "all")
+  const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "")
+  const [page, setPage] = useState(Number.parseInt(searchParams.get("page") || "1", 10))
+  const [totalPages, setTotalPages] = useState(1)
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  // Fetch comments
   useEffect(() => {
-    // Simulate fetching data
-    setTimeout(() => {
-      setComments([
-        {
-          id: 1,
-          content:
-            "I received the same scam email yesterday. They asked for my bank details claiming my account was suspended.",
-          reportTitle: "FNB Account Suspension Scam",
-          reportId: 101,
-          user: {
-            name: "John Doe",
-            email: "john.doe@example.com",
-            avatar: "/placeholder.svg?height=40&width=40",
-          },
-          date: "2023-05-15T14:30:00",
-          status: "approved",
-          likes: 8,
-          flags: 0,
-        },
-        {
-          id: 2,
-          content: "This is definitely a scam. I lost N$5,000 to these people last month. Everyone should be careful!",
-          reportTitle: "Namibia Mining Investment Scam",
-          reportId: 102,
-          user: {
-            name: "Sarah Smith",
-            email: "sarah.smith@example.com",
-            avatar: "/placeholder.svg?height=40&width=40",
-          },
-          date: "2023-05-14T09:15:00",
-          status: "approved",
-          likes: 15,
-          flags: 0,
-        },
-        {
-          id: 3,
-          content:
-            "This comment contains inappropriate language and personal attacks that violate our community guidelines.",
-          reportTitle: "WhatsApp Investment Group Scam",
-          reportId: 103,
-          user: {
-            name: "Michael Brown",
-            email: "michael.brown@example.com",
-            avatar: "/placeholder.svg?height=40&width=40",
-          },
-          date: "2023-05-13T16:45:00",
-          status: "flagged",
-          likes: 2,
-          flags: 5,
-        },
-        {
-          id: 4,
-          content: "I think this might be a legitimate business. I've worked with them before without any issues.",
-          reportTitle: "Fake Property Rental in Windhoek",
-          reportId: 104,
-          user: {
-            name: "Lisa Johnson",
-            email: "lisa.johnson@example.com",
-            avatar: "/placeholder.svg?height=40&width=40",
-          },
-          date: "2023-05-12T11:20:00",
-          status: "pending",
-          likes: 1,
-          flags: 3,
-        },
-        {
-          id: 5,
-          content: "This is spam advertising another service. Not relevant to the scam report.",
-          reportTitle: "Cryptocurrency Mining Investment",
-          reportId: 105,
-          user: {
-            name: "David Williams",
-            email: "david.williams@example.com",
-            avatar: "/placeholder.svg?height=40&width=40",
-          },
-          date: "2023-05-11T08:30:00",
-          status: "rejected",
-          likes: 0,
-          flags: 7,
-        },
-        {
-          id: 6,
-          content: "I can confirm this is a scam. They also contacted me via WhatsApp with the same offer.",
-          reportTitle: "FNB Account Suspension Scam",
-          reportId: 101,
-          user: {
-            name: "Emma Wilson",
-            email: "emma.wilson@example.com",
-            avatar: "/placeholder.svg?height=40&width=40",
-          },
-          date: "2023-05-10T15:40:00",
-          status: "approved",
-          likes: 12,
-          flags: 0,
-        },
-        {
-          id: 7,
-          content: "Thanks for reporting this. I almost fell for it but saw your post just in time.",
-          reportTitle: "Namibia Mining Investment Scam",
-          reportId: 102,
-          user: {
-            name: "James Taylor",
-            email: "james.taylor@example.com",
-            avatar: "/placeholder.svg?height=40&width=40",
-          },
-          date: "2023-05-09T13:10:00",
-          status: "approved",
-          likes: 18,
-          flags: 0,
-        },
-      ])
-      setIsLoading(false)
-    }, 1000)
-  }, [])
+    const fetchComments = async () => {
+      try {
+        setLoading(true)
 
-  // Filter comments based on search query and status filter
-  const filteredComments = comments.filter((comment) => {
-    const matchesSearch =
-      comment.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      comment.reportTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      comment.user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      comment.user.email.toLowerCase().includes(searchQuery.toLowerCase())
+        // Build query parameters
+        const params = new URLSearchParams()
+        if (statusFilter !== "all") params.append("status", statusFilter)
+        if (searchQuery) params.append("q", searchQuery)
+        params.append("page", page.toString())
 
-    const matchesStatus = filterStatus === "all" || comment.status === filterStatus
+        const response = await fetch(`/api/admin/comments?${params.toString()}`)
 
-    return matchesSearch && matchesStatus
-  })
+        if (!response.ok) {
+          await handleApiError(response)
+          return
+        }
 
-  const formatDate = (dateString) => {
-    const date = new Date(dateString)
-    return new Intl.DateTimeFormat("en-GB", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(date)
+        const data = await response.json()
+        setComments(data.comments)
+        setTotalPages(data.totalPages || 1)
+
+        // Reset new comments counter when we fetch
+        resetCounter()
+
+        logger.info("Fetched admin comments", "admin-comments", {
+          count: data.comments.length,
+          filter: statusFilter,
+          search: searchQuery,
+          page,
+        })
+      } catch (error) {
+        logger.error("Failed to fetch comments", "admin-comments", undefined, error as Error)
+        toast({
+          title: "Error",
+          description: "Failed to load comments. Please try again.",
+          variant: "destructive",
+        })
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchComments()
+  }, [statusFilter, page, searchQuery, refreshKey, resetCounter])
+
+  // Handle status filter change
+  const handleStatusChange = (value: string) => {
+    setStatusFilter(value)
+    setPage(1)
+    updateUrl(value, searchQuery, 1)
   }
 
-  const handleStatusChange = (commentId, newStatus) => {
-    setComments(comments.map((comment) => (comment.id === commentId ? { ...comment, status: newStatus } : comment)))
+  // Handle search
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    setPage(1)
+    updateUrl(statusFilter, searchQuery, 1)
+  }
+
+  // Update URL with filters
+  const updateUrl = (status: string, query: string, currentPage: number) => {
+    const params = new URLSearchParams()
+    if (status !== "all") params.set("status", status)
+    if (query) params.set("q", query)
+    if (currentPage > 1) params.set("page", currentPage.toString())
+
+    const newUrl = `/admin/comments${params.toString() ? `?${params.toString()}` : ""}`
+    router.push(newUrl)
+  }
+
+  // Handle select all
+  const handleSelectAll = () => {
+    if (selectAll) {
+      setSelectedComments([])
+    } else {
+      setSelectedComments(comments.map((comment) => comment.id))
+    }
+    setSelectAll(!selectAll)
+  }
+
+  // Handle individual selection
+  const handleSelectComment = (id: number) => {
+    if (selectedComments.includes(id)) {
+      setSelectedComments(selectedComments.filter((commentId) => commentId !== id))
+      setSelectAll(false)
+    } else {
+      setSelectedComments([...selectedComments, id])
+      if (selectedComments.length + 1 === comments.length) {
+        setSelectAll(true)
+      }
+    }
+  }
+
+  // Handle bulk approve
+  const handleBulkApprove = async () => {
+    if (selectedComments.length === 0) return
+
+    try {
+      setLoading(true)
+
+      const response = await fetch("/api/admin/comments/bulk-status", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          commentIds: selectedComments,
+          status: "approved",
+        }),
+      })
+
+      if (!response.ok) {
+        await handleApiError(response)
+        return
+      }
+
+      toast({
+        title: "Success",
+        description: `${selectedComments.length} comments approved`,
+      })
+
+      // Track admin action
+      trackAdminAction("bulk_approve_comments", "admin", {
+        count: selectedComments.length,
+        commentIds: selectedComments,
+      })
+
+      // Reset selection and refresh
+      setSelectedComments([])
+      setSelectAll(false)
+      setRefreshKey((prev) => prev + 1)
+    } catch (error) {
+      logger.error(
+        "Failed to bulk approve comments",
+        "admin-comments",
+        {
+          commentIds: selectedComments,
+        },
+        error as Error,
+      )
+
+      toast({
+        title: "Error",
+        description: "Failed to approve comments. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Handle bulk reject
+  const handleBulkReject = async () => {
+    if (selectedComments.length === 0) return
+
+    try {
+      setLoading(true)
+
+      const response = await fetch("/api/admin/comments/bulk-status", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          commentIds: selectedComments,
+          status: "rejected",
+        }),
+      })
+
+      if (!response.ok) {
+        await handleApiError(response)
+        return
+      }
+
+      toast({
+        title: "Success",
+        description: `${selectedComments.length} comments rejected`,
+      })
+
+      // Track admin action
+      trackAdminAction("bulk_reject_comments", "admin", {
+        count: selectedComments.length,
+        commentIds: selectedComments,
+      })
+
+      // Reset selection and refresh
+      setSelectedComments([])
+      setSelectAll(false)
+      setRefreshKey((prev) => prev + 1)
+    } catch (error) {
+      logger.error(
+        "Failed to bulk reject comments",
+        "admin-comments",
+        {
+          commentIds: selectedComments,
+        },
+        error as Error,
+      )
+
+      toast({
+        title: "Error",
+        description: "Failed to reject comments. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Handle refresh
+  const handleRefresh = () => {
+    setRefreshKey((prev) => prev + 1)
+  }
+
+  // Render status badge
+  const renderStatusBadge = (status: string) => {
+    switch (status) {
+      case "approved":
+        return (
+          <div className="flex items-center text-green-600">
+            <CheckCircle className="w-4 h-4 mr-1" />
+            Approved
+          </div>
+        )
+      case "rejected":
+        return (
+          <div className="flex items-center text-red-600">
+            <XCircle className="w-4 h-4 mr-1" />
+            Rejected
+          </div>
+        )
+      case "flagged":
+        return (
+          <div className="flex items-center text-amber-600">
+            <AlertTriangle className="w-4 h-4 mr-1" />
+            Flagged
+          </div>
+        )
+      default:
+        return (
+          <div className="flex items-center text-gray-600">
+            <AlertTriangle className="w-4 h-4 mr-1" />
+            Pending
+          </div>
+        )
+    }
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Comments Management</h1>
-          <p className="text-gray-500">Review and moderate user comments</p>
-        </div>
-        <div className="flex gap-3">
-          <Button className="bg-blue-600 text-white border-2 border-blue-700 hover:bg-blue-700">
-            <MessageSquare className="mr-2 h-4 w-4" />
-            <span className="text-base">Comment Settings</span>
-          </Button>
-        </div>
-      </div>
-
-      <Card className="border-2 border-gray-200">
-        <CardHeader className="pb-3">
-          <CardTitle>Filter Comments</CardTitle>
-          <CardDescription>Search and filter user comments</CardDescription>
+    <div className="container mx-auto py-6">
+      <Card>
+        <CardHeader>
+          <div className="flex justify-between items-center">
+            <div>
+              <CardTitle>Comment Moderation</CardTitle>
+              <CardDescription>
+                Manage and moderate user comments
+                {newComments > 0 && (
+                  <span className="ml-2 bg-red-500 text-white px-2 py-0.5 rounded-full text-xs">{newComments} new</span>
+                )}
+              </CardDescription>
+            </div>
+            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={loading}>
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Refresh
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col md:flex-row gap-4">
+          <div className="flex flex-col md:flex-row gap-4 mb-6">
             <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-                <Input
-                  placeholder="Search by content, report, or user"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 py-6 border-2 border-gray-300"
-                />
-              </div>
+              <form onSubmit={handleSearch} className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+                  <Input
+                    type="search"
+                    placeholder="Search comments..."
+                    className="pl-8"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+                <Button type="submit">Search</Button>
+              </form>
             </div>
-            <div className="w-full md:w-64">
-              <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger className="border-2 border-gray-300 py-6">
-                  <div className="flex items-center">
-                    <Filter className="mr-2 h-4 w-4 text-gray-500" />
-                    <span>Status: {filterStatus.charAt(0).toUpperCase() + filterStatus.slice(1)}</span>
-                  </div>
+            <div className="w-full md:w-48">
+              <Select value={statusFilter} onValueChange={handleStatusChange}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Filter by status" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Comments</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
                   <SelectItem value="approved">Approved</SelectItem>
-                  <SelectItem value="pending">Pending Review</SelectItem>
                   <SelectItem value="flagged">Flagged</SelectItem>
                   <SelectItem value="rejected">Rejected</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
+
+          {selectedComments.length > 0 && (
+            <div className="bg-muted p-3 rounded-md mb-4 flex items-center justify-between">
+              <span>{selectedComments.length} comments selected</span>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={handleBulkApprove} disabled={loading}>
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  Approve All
+                </Button>
+                <Button size="sm" variant="outline" onClick={handleBulkReject} disabled={loading}>
+                  <XCircle className="w-4 h-4 mr-2" />
+                  Reject All
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {loading ? (
+            <div className="flex justify-center items-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+          ) : comments.length === 0 ? (
+            <div className="text-center py-12 text-gray-500">No comments found matching your criteria</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="border-b">
+                    <th className="py-2 px-4 text-left">
+                      <Checkbox
+                        checked={selectAll}
+                        onCheckedChange={handleSelectAll}
+                        aria-label="Select all comments"
+                      />
+                    </th>
+                    <th className="py-2 px-4 text-left">Comment</th>
+                    <th className="py-2 px-4 text-left">Report</th>
+                    <th className="py-2 px-4 text-left">User</th>
+                    <th className="py-2 px-4 text-left">Status</th>
+                    <th className="py-2 px-4 text-left">Date</th>
+                    <th className="py-2 px-4 text-left">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {comments.map((comment) => (
+                    <tr key={comment.id} className="border-b hover:bg-muted/50">
+                      <td className="py-3 px-4">
+                        <Checkbox
+                          checked={selectedComments.includes(comment.id)}
+                          onCheckedChange={() => handleSelectComment(comment.id)}
+                          aria-label={`Select comment ${comment.id}`}
+                        />
+                      </td>
+                      <td className="py-3 px-4 max-w-xs truncate">{comment.comment}</td>
+                      <td className="py-3 px-4">{comment.report_title || `Report #${comment.report_id}`}</td>
+                      <td className="py-3 px-4">{comment.user_name || `User #${comment.user_id}`}</td>
+                      <td className="py-3 px-4">{renderStatusBadge(comment.status)}</td>
+                      <td className="py-3 px-4">{new Date(comment.created_at).toLocaleDateString()}</td>
+                      <td className="py-3 px-4">
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => router.push(`/admin/comments/${comment.id}`)}
+                          >
+                            View
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </CardContent>
+        <CardFooter className="flex justify-between">
+          <div className="text-sm text-gray-500">{comments.length > 0 && `Showing ${comments.length} comments`}</div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setPage(Math.max(1, page - 1))
+                updateUrl(statusFilter, searchQuery, Math.max(1, page - 1))
+              }}
+              disabled={page <= 1 || loading}
+            >
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setPage(Math.min(totalPages, page + 1))
+                updateUrl(statusFilter, searchQuery, Math.min(totalPages, page + 1))
+              }}
+              disabled={page >= totalPages || loading}
+            >
+              Next
+            </Button>
+          </div>
+        </CardFooter>
       </Card>
-
-      <Tabs defaultValue="all" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 mb-4 border-2 border-gray-200 p-1 bg-white">
-          <TabsTrigger
-            value="all"
-            className="text-base py-2 data-[state=active]:bg-blue-600 data-[state=active]:text-white"
-          >
-            All
-          </TabsTrigger>
-          <TabsTrigger
-            value="flagged"
-            className="text-base py-2 data-[state=active]:bg-blue-600 data-[state=active]:text-white"
-          >
-            Flagged
-          </TabsTrigger>
-          <TabsTrigger
-            value="pending"
-            className="text-base py-2 data-[state=active]:bg-blue-600 data-[state=active]:text-white"
-          >
-            Pending
-          </TabsTrigger>
-          <TabsTrigger
-            value="approved"
-            className="text-base py-2 data-[state=active]:bg-blue-600 data-[state=active]:text-white"
-          >
-            Approved
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="all" className="mt-0">
-          <Card className="border-2 border-gray-200">
-            <CardHeader>
-              <CardTitle>All Comments</CardTitle>
-              <CardDescription>Showing {filteredComments.length} comments</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="space-y-4">
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className="h-32 bg-gray-100 animate-pulse rounded-lg"></div>
-                  ))}
-                </div>
-              ) : filteredComments.length === 0 ? (
-                <div className="text-center py-10">
-                  <MessageSquare className="mx-auto h-12 w-12 text-gray-400" />
-                  <h3 className="mt-2 text-lg font-medium">No comments found</h3>
-                  <p className="mt-1 text-gray-500">Try adjusting your search or filter criteria</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {filteredComments.map((comment) => (
-                    <Card key={comment.id} className="overflow-hidden border-2 border-gray-200">
-                      <CardContent className="p-0">
-                        <div className="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
-                          <div className="flex items-center gap-3">
-                            <Avatar>
-                              <AvatarImage src={comment.user.avatar || "/placeholder.svg"} alt={comment.user.name} />
-                              <AvatarFallback>
-                                {comment.user.name
-                                  .split(" ")
-                                  .map((n) => n[0])
-                                  .join("")}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div>
-                              <div className="font-medium text-gray-800">{comment.user.name}</div>
-                              <div className="text-xs text-gray-500">{comment.user.email}</div>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Badge
-                              className={`text-white border-0 ${
-                                comment.status === "approved"
-                                  ? "bg-green-600"
-                                  : comment.status === "pending"
-                                    ? "bg-amber-500"
-                                    : comment.status === "flagged"
-                                      ? "bg-red-500"
-                                      : "bg-gray-600"
-                              }`}
-                            >
-                              {comment.status.charAt(0).toUpperCase() + comment.status.slice(1)}
-                            </Badge>
-                            <div className="text-xs text-gray-500">{formatDate(comment.date)}</div>
-                          </div>
-                        </div>
-                        <div className="p-4">
-                          <div className="mb-2 text-sm text-gray-500">
-                            On report:{" "}
-                            <a href={`/admin/reports/${comment.reportId}`} className="text-blue-600 hover:underline">
-                              {comment.reportTitle}
-                            </a>
-                          </div>
-                          <p className="text-gray-800">{comment.content}</p>
-                          <div className="flex items-center gap-4 mt-3 text-sm text-gray-500">
-                            <div className="flex items-center">
-                              <ThumbsUp className="h-4 w-4 mr-1 text-gray-400" />
-                              <span>{comment.likes} likes</span>
-                            </div>
-                            <div className="flex items-center">
-                              <Flag className="h-4 w-4 mr-1 text-gray-400" />
-                              <span>{comment.flags} flags</span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="p-3 border-t border-gray-200 bg-gray-50 flex justify-end gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="border-2 border-gray-300 text-gray-700"
-                            onClick={() => window.open(`/dashboard/scam/${comment.reportId}`, "_blank")}
-                          >
-                            <Eye className="h-4 w-4 mr-1" />
-                            <span className="text-sm">View in Context</span>
-                          </Button>
-                          {comment.status !== "approved" && (
-                            <Button
-                              size="sm"
-                              className="bg-green-600 text-white border-2 border-green-700 hover:bg-green-700"
-                              onClick={() => handleStatusChange(comment.id, "approved")}
-                            >
-                              <CheckCircle className="h-4 w-4 mr-1" />
-                              <span className="text-sm">Approve</span>
-                            </Button>
-                          )}
-                          {comment.status !== "rejected" && (
-                            <Button
-                              size="sm"
-                              className="bg-red-600 text-white border-2 border-red-700 hover:bg-red-700"
-                              onClick={() => handleStatusChange(comment.id, "rejected")}
-                            >
-                              <X className="h-4 w-4 mr-1" />
-                              <span className="text-sm">Reject</span>
-                            </Button>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="flagged" className="mt-0">
-          <Card className="border-2 border-gray-200">
-            <CardHeader>
-              <CardTitle>Flagged Comments</CardTitle>
-              <CardDescription>Comments that have been flagged by users</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {filteredComments
-                  .filter((comment) => comment.status === "flagged")
-                  .map((comment) => (
-                    <Card key={comment.id} className="overflow-hidden border-2 border-gray-200">
-                      <CardContent className="p-0">
-                        <div className="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
-                          <div className="flex items-center gap-3">
-                            <Avatar>
-                              <AvatarImage src={comment.user.avatar || "/placeholder.svg"} alt={comment.user.name} />
-                              <AvatarFallback>
-                                {comment.user.name
-                                  .split(" ")
-                                  .map((n) => n[0])
-                                  .join("")}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div>
-                              <div className="font-medium text-gray-800">{comment.user.name}</div>
-                              <div className="text-xs text-gray-500">{comment.user.email}</div>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Badge className="bg-red-500 text-white border-0">Flagged</Badge>
-                            <div className="text-xs text-gray-500">{formatDate(comment.date)}</div>
-                          </div>
-                        </div>
-                        <div className="p-4">
-                          <div className="mb-2 text-sm text-gray-500">
-                            On report:{" "}
-                            <a href={`/admin/reports/${comment.reportId}`} className="text-blue-600 hover:underline">
-                              {comment.reportTitle}
-                            </a>
-                          </div>
-                          <p className="text-gray-800">{comment.content}</p>
-                          <div className="flex items-center gap-4 mt-3 text-sm text-gray-500">
-                            <div className="flex items-center">
-                              <ThumbsUp className="h-4 w-4 mr-1 text-gray-400" />
-                              <span>{comment.likes} likes</span>
-                            </div>
-                            <div className="flex items-center">
-                              <Flag className="h-4 w-4 mr-1 text-red-500" />
-                              <span className="text-red-500 font-medium">{comment.flags} flags</span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="p-3 border-t border-gray-200 bg-gray-50 flex justify-end gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="border-2 border-gray-300 text-gray-700"
-                            onClick={() => window.open(`/dashboard/scam/${comment.reportId}`, "_blank")}
-                          >
-                            <Eye className="h-4 w-4 mr-1" />
-                            <span className="text-sm">View in Context</span>
-                          </Button>
-                          <Button
-                            size="sm"
-                            className="bg-green-600 text-white border-2 border-green-700 hover:bg-green-700"
-                            onClick={() => handleStatusChange(comment.id, "approved")}
-                          >
-                            <CheckCircle className="h-4 w-4 mr-1" />
-                            <span className="text-sm">Approve</span>
-                          </Button>
-                          <Button
-                            size="sm"
-                            className="bg-red-600 text-white border-2 border-red-700 hover:bg-red-700"
-                            onClick={() => handleStatusChange(comment.id, "rejected")}
-                          >
-                            <X className="h-4 w-4 mr-1" />
-                            <span className="text-sm">Reject</span>
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="pending" className="mt-0">
-          <Card className="border-2 border-gray-200">
-            <CardHeader>
-              <CardTitle>Pending Comments</CardTitle>
-              <CardDescription>Comments awaiting moderation</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {filteredComments
-                  .filter((comment) => comment.status === "pending")
-                  .map((comment) => (
-                    <Card key={comment.id} className="overflow-hidden border-2 border-gray-200">
-                      <CardContent className="p-0">
-                        <div className="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
-                          <div className="flex items-center gap-3">
-                            <Avatar>
-                              <AvatarImage src={comment.user.avatar || "/placeholder.svg"} alt={comment.user.name} />
-                              <AvatarFallback>
-                                {comment.user.name
-                                  .split(" ")
-                                  .map((n) => n[0])
-                                  .join("")}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div>
-                              <div className="font-medium text-gray-800">{comment.user.name}</div>
-                              <div className="text-xs text-gray-500">{comment.user.email}</div>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Badge className="bg-amber-500 text-white border-0">Pending</Badge>
-                            <div className="text-xs text-gray-500">{formatDate(comment.date)}</div>
-                          </div>
-                        </div>
-                        <div className="p-4">
-                          <div className="mb-2 text-sm text-gray-500">
-                            On report:{" "}
-                            <a href={`/admin/reports/${comment.reportId}`} className="text-blue-600 hover:underline">
-                              {comment.reportTitle}
-                            </a>
-                          </div>
-                          <p className="text-gray-800">{comment.content}</p>
-                          <div className="flex items-center gap-4 mt-3 text-sm text-gray-500">
-                            <div className="flex items-center">
-                              <ThumbsUp className="h-4 w-4 mr-1 text-gray-400" />
-                              <span>{comment.likes} likes</span>
-                            </div>
-                            <div className="flex items-center">
-                              <Flag className="h-4 w-4 mr-1 text-gray-400" />
-                              <span>{comment.flags} flags</span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="p-3 border-t border-gray-200 bg-gray-50 flex justify-end gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="border-2 border-gray-300 text-gray-700"
-                            onClick={() => window.open(`/dashboard/scam/${comment.reportId}`, "_blank")}
-                          >
-                            <Eye className="h-4 w-4 mr-1" />
-                            <span className="text-sm">View in Context</span>
-                          </Button>
-                          <Button
-                            size="sm"
-                            className="bg-green-600 text-white border-2 border-green-700 hover:bg-green-700"
-                            onClick={() => handleStatusChange(comment.id, "approved")}
-                          >
-                            <CheckCircle className="h-4 w-4 mr-1" />
-                            <span className="text-sm">Approve</span>
-                          </Button>
-                          <Button
-                            size="sm"
-                            className="bg-red-600 text-white border-2 border-red-700 hover:bg-red-700"
-                            onClick={() => handleStatusChange(comment.id, "rejected")}
-                          >
-                            <X className="h-4 w-4 mr-1" />
-                            <span className="text-sm">Reject</span>
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="approved" className="mt-0">
-          <Card className="border-2 border-gray-200">
-            <CardHeader>
-              <CardTitle>Approved Comments</CardTitle>
-              <CardDescription>Comments that have been approved by moderators</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {filteredComments
-                  .filter((comment) => comment.status === "approved")
-                  .map((comment) => (
-                    <Card key={comment.id} className="overflow-hidden border-2 border-gray-200">
-                      <CardContent className="p-0">
-                        <div className="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
-                          <div className="flex items-center gap-3">
-                            <Avatar>
-                              <AvatarImage src={comment.user.avatar || "/placeholder.svg"} alt={comment.user.name} />
-                              <AvatarFallback>
-                                {comment.user.name
-                                  .split(" ")
-                                  .map((n) => n[0])
-                                  .join("")}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div>
-                              <div className="font-medium text-gray-800">{comment.user.name}</div>
-                              <div className="text-xs text-gray-500">{comment.user.email}</div>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Badge className="bg-green-600 text-white border-0">Approved</Badge>
-                            <div className="text-xs text-gray-500">{formatDate(comment.date)}</div>
-                          </div>
-                        </div>
-                        <div className="p-4">
-                          <div className="mb-2 text-sm text-gray-500">
-                            On report:{" "}
-                            <a href={`/admin/reports/${comment.reportId}`} className="text-blue-600 hover:underline">
-                              {comment.reportTitle}
-                            </a>
-                          </div>
-                          <p className="text-gray-800">{comment.content}</p>
-                          <div className="flex items-center gap-4 mt-3 text-sm text-gray-500">
-                            <div className="flex items-center">
-                              <ThumbsUp className="h-4 w-4 mr-1 text-gray-400" />
-                              <span>{comment.likes} likes</span>
-                            </div>
-                            <div className="flex items-center">
-                              <Flag className="h-4 w-4 mr-1 text-gray-400" />
-                              <span>{comment.flags} flags</span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="p-3 border-t border-gray-200 bg-gray-50 flex justify-end gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="border-2 border-gray-300 text-gray-700"
-                            onClick={() => window.open(`/dashboard/scam/${comment.reportId}`, "_blank")}
-                          >
-                            <Eye className="h-4 w-4 mr-1" />
-                            <span className="text-sm">View in Context</span>
-                          </Button>
-                          <Button
-                            size="sm"
-                            className="bg-red-600 text-white border-2 border-red-700 hover:bg-red-700"
-                            onClick={() => handleStatusChange(comment.id, "rejected")}
-                          >
-                            <X className="h-4 w-4 mr-1" />
-                            <span className="text-sm">Reject</span>
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
     </div>
   )
 }

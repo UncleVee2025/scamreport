@@ -23,6 +23,7 @@ import {
 } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
 import { CommentForm } from "@/components/comment-form"
+import { ScamDetailEnhancements } from "@/components/scam-detail-enhancements"
 
 export default function ScamDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter()
@@ -38,82 +39,86 @@ export default function ScamDetailPage({ params }: { params: { id: string } }) {
 
   const fetchScamDetails = async () => {
     try {
+      setIsLoading(true)
+
       // In a real app, this would be an actual API call
-      // const response = await fetch(`/api/scams/${params.id}`)
-      // const data = await response.json()
+      // Simulate API response for scam details
+      const mockScam = {
+        id: Number.parseInt(params.id),
+        type: "Phishing Email",
+        title: "FNB Account Suspension",
+        description:
+          "I received an email claiming my FNB account was suspended due to suspicious activity. The email asked me to click a link and enter my personal details to verify my identity. The link led to a fake website that looked like FNB's login page.",
+        date: "2023-05-15T14:30:00",
+        status: "Verified",
+        meToo: 12,
+        reporter: {
+          name: "John Doe",
+          avatar: "/placeholder.svg?height=40&width=40",
+        },
+        location: "Windhoek, Namibia",
+        evidence: [
+          {
+            type: "image",
+            url: "/placeholder.svg?height=300&width=500&text=Phishing+Email+Screenshot",
+            description: "Screenshot of phishing email",
+          },
+        ],
+        details: {
+          moneyInvolved: "No",
+          whatWasScammed: "Personal banking information",
+          policeCase: "N/A",
+        },
+        isVerified: true,
+      }
 
-      // Simulate API response
-      setTimeout(() => {
-        const mockScam = {
-          id: Number.parseInt(params.id),
-          type: "Phishing Email",
-          title: "FNB Account Suspension",
-          description:
-            "I received an email claiming my FNB account was suspended due to suspicious activity. The email asked me to click a link and enter my personal details to verify my identity. The link led to a fake website that looked like FNB's login page.",
-          date: "2023-05-15T14:30:00",
-          status: "Verified",
-          meToo: 12,
-          reporter: {
-            name: "John Doe",
-            avatar: "/placeholder.svg?height=40&width=40",
-          },
-          location: "Windhoek, Namibia",
-          evidence: [
-            {
-              type: "image",
-              url: "/placeholder.svg?height=300&width=500&text=Phishing+Email+Screenshot",
-              description: "Screenshot of phishing email",
+      setScam(mockScam)
+      setMeTooCount(mockScam.meToo)
+
+      // Fetch actual comments from the API
+      try {
+        const commentsResponse = await fetch(`/api/scams/${params.id}/comments`)
+        const commentsData = await commentsResponse.json()
+
+        if (commentsData.success && commentsData.data) {
+          // Transform API data to match our component's expected format
+          const formattedComments = commentsData.data.map((comment) => ({
+            id: comment.id,
+            user: {
+              name: comment.user_name,
+              avatar: "/placeholder.svg?height=40&width=40&text=" + comment.user_name.charAt(0),
+              isOfficial: comment.is_official,
             },
-          ],
-          details: {
-            moneyInvolved: "No",
-            whatWasScammed: "Personal banking information",
-            policeCase: "N/A",
-          },
-          isVerified: true,
+            text: comment.comment,
+            date: formatRelativeTime(new Date(comment.created_at)),
+          }))
+
+          setComments(formattedComments)
         }
+      } catch (commentError) {
+        console.error("Error fetching comments:", commentError)
+        // Don't fail the whole page if comments can't be loaded
+        setComments([])
+      }
 
-        setScam(mockScam)
-        setMeTooCount(mockScam.meToo)
-
-        // Mock comments
-        setComments([
-          {
-            id: 1,
-            user: {
-              name: "Sarah Johnson",
-              avatar: "/placeholder.svg?height=40&width=40&text=SJ",
-            },
-            text: "I received the same email yesterday! Thanks for reporting it.",
-            date: "2 hours ago",
-          },
-          {
-            id: 2,
-            user: {
-              name: "Michael Brown",
-              avatar: "/placeholder.svg?height=40&width=40&text=MB",
-            },
-            text: "FNB has issued a warning about this on their website. Always check the sender's email address carefully.",
-            date: "Yesterday",
-          },
-          {
-            id: 3,
-            user: {
-              name: "Bank Representative",
-              avatar: "/placeholder.svg?height=40&width=40&text=BR",
-              isOfficial: true,
-            },
-            text: "Thank you for reporting this. We confirm this is a phishing attempt. FNB will never ask for your personal details via email.",
-            date: "2 days ago",
-          },
-        ])
-
-        setIsLoading(false)
-      }, 1000)
+      setIsLoading(false)
     } catch (error) {
       console.error("Error fetching scam details:", error)
       setIsLoading(false)
     }
+  }
+
+  // Add this helper function to format dates
+  const formatRelativeTime = (date: Date) => {
+    const now = new Date()
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000)
+
+    if (diffInSeconds < 60) return "Just now"
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`
+    if (diffInSeconds < 172800) return "Yesterday"
+
+    return date.toLocaleDateString()
   }
 
   const handleMeTooClick = () => {
@@ -138,6 +143,7 @@ export default function ScamDetailPage({ params }: { params: { id: string } }) {
   }
 
   const handleCommentAdded = (newComment: any) => {
+    // Add the new comment to the beginning of the comments array
     setComments([newComment, ...comments])
   }
 
@@ -317,51 +323,64 @@ export default function ScamDetailPage({ params }: { params: { id: string } }) {
               </TabsTrigger>
             </TabsList>
             <TabsContent value="comments" className="mt-4 space-y-4">
-              <CommentForm scamId={scam.id} onCommentAdded={handleCommentAdded} />
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2">
+                  <CommentForm scamId={scam.id} onCommentAdded={handleCommentAdded} />
 
-              <div className="space-y-4 mt-6">
-                <AnimatePresence>
-                  {comments.map((comment, index) => (
-                    <motion.div
-                      key={comment.id}
-                      className="bg-white rounded-xl p-4 shadow-sm card-hover"
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.9 }}
-                      transition={{ duration: 0.3, delay: index * 0.1 }}
-                    >
-                      <div className="flex justify-between">
-                        <div className="flex items-center gap-3">
-                          <Avatar>
-                            <AvatarImage src={comment.user.avatar || "/placeholder.svg"} alt={comment.user.name} />
-                            <AvatarFallback>{comment.user.name.charAt(0)}</AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <p className="font-medium">{comment.user.name}</p>
-                              {comment.user.isOfficial && <Badge className="bg-primary">Official</Badge>}
+                  <div className="space-y-4 mt-6">
+                    <AnimatePresence>
+                      {comments.map((comment, index) => (
+                        <motion.div
+                          key={comment.id}
+                          className="bg-white rounded-xl p-4 shadow-sm card-hover"
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, scale: 0.9 }}
+                          transition={{ duration: 0.3, delay: index * 0.1 }}
+                        >
+                          <div className="flex justify-between">
+                            <div className="flex items-center gap-3">
+                              <Avatar>
+                                <AvatarImage src={comment.user.avatar || "/placeholder.svg"} alt={comment.user.name} />
+                                <AvatarFallback>{comment.user.name.charAt(0)}</AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <p className="font-medium">{comment.user.name}</p>
+                                  {comment.user.isOfficial && <Badge className="bg-primary">Official</Badge>}
+                                </div>
+                                <p className="text-xs text-gray-500 flex items-center">
+                                  <Clock className="h-3 w-3 mr-1" />
+                                  {comment.date}
+                                </p>
+                              </div>
                             </div>
-                            <p className="text-xs text-gray-500 flex items-center">
-                              <Clock className="h-3 w-3 mr-1" />
-                              {comment.date}
-                            </p>
+                            {comment.user.name === "You" && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-gray-400 hover:text-red-500"
+                                onClick={() => handleDeleteComment(comment.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
                           </div>
-                        </div>
-                        {comment.user.name === "You" && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-gray-400 hover:text-red-500"
-                            onClick={() => handleDeleteComment(comment.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                      <p className="mt-2 text-gray-700">{comment.text}</p>
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
+                          <p className="mt-2 text-gray-700">{comment.text}</p>
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
+                  </div>
+                </div>
+
+                <div>
+                  <ScamDetailEnhancements
+                    scamId={scam.id}
+                    scamType={scam.type}
+                    scamDescription={scam.description}
+                    onCommentAdded={handleCommentAdded}
+                  />
+                </div>
               </div>
             </TabsContent>
             <TabsContent value="details" className="mt-4">

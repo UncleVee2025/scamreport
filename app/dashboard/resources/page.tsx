@@ -1,23 +1,94 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { motion } from "framer-motion"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { LinkIcon, Search, ExternalLink, ChevronRight } from "lucide-react"
+import { URLChecker } from "@/components/url-checker"
+import Link from "next/link"
+import { LoadingSpinner } from "@/components/loading-spinner"
 
 export default function ResourcesPage() {
   const [loaded, setLoaded] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [activeTab, setActiveTab] = useState("all")
+  const [page, setPage] = useState(1)
+  const [hasMore, setHasMore] = useState(true)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const observer = useRef<IntersectionObserver | null>(null)
+  const lastResourceElementRef = useCallback(
+    (node) => {
+      if (isLoadingMore) return
+      if (observer.current) observer.current.disconnect()
+      observer.current = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting && hasMore) {
+          loadMoreResources()
+        }
+      })
+      if (node) observer.current.observe(node)
+    },
+    [isLoadingMore, hasMore],
+  )
 
   useEffect(() => {
     setLoaded(true)
   }, [])
 
-  const resources = [
+  // Simulating loading more resources
+  const loadMoreResources = () => {
+    if (isLoadingMore || !hasMore) return
+
+    setIsLoadingMore(true)
+    // Simulate API call delay
+    setTimeout(() => {
+      // Add more resources
+      const newResources = [
+        {
+          id: resources.length + 1,
+          title: "Avoiding Tax Scams",
+          type: "article",
+          description: "How to identify and avoid common tax-related scams",
+          date: "July 15, 2023",
+          thumbnail: "/placeholder.svg?height=120&width=200",
+          url: "#",
+        },
+        {
+          id: resources.length + 2,
+          title: "Secure Online Shopping",
+          type: "guide",
+          description: "Best practices for safe online shopping",
+          date: "July 20, 2023",
+          thumbnail: "/placeholder.svg?height=120&width=200",
+          url: "#",
+        },
+        {
+          id: resources.length + 3,
+          title: "Romance Scams Explained",
+          type: "video",
+          description: "Understanding and avoiding online romance scams",
+          date: "July 25, 2023",
+          thumbnail: "/placeholder.svg?height=120&width=200",
+          duration: "15:30",
+          url: "#",
+        },
+      ]
+
+      setResources((prevResources) => [...prevResources, ...newResources])
+      setPage((prevPage) => prevPage + 1)
+
+      // After 3 pages, stop loading more
+      if (page >= 3) {
+        setHasMore(false)
+      }
+
+      setIsLoadingMore(false)
+    }, 1500)
+  }
+
+  const [resources, setResources] = useState([
     {
       id: 1,
       title: "How to Identify Phishing Emails",
@@ -39,11 +110,11 @@ export default function ResourcesPage() {
     },
     {
       id: 3,
-      title: "Common Investment Scams in Namibia",
+      title: "Identity Theft Prevention",
       type: "article",
-      description: "A comprehensive guide to recognizing and avoiding investment scams",
+      description: "Essential steps to protect yourself from identity theft",
       date: "June 5, 2023",
-      thumbnail: "/placeholder.svg?height=120&width=200",
+      thumbnail: "/identity_theft.jpg",
       url: "#",
     },
     {
@@ -57,11 +128,11 @@ export default function ResourcesPage() {
     },
     {
       id: 5,
-      title: "Social Media Safety for Teens",
+      title: "Social Media Safety",
       type: "video",
-      description: "How teenagers can stay safe on social media platforms",
+      description: "How to stay safe on social media platforms and avoid common scams",
       date: "May 28, 2023",
-      thumbnail: "/placeholder.svg?height=120&width=200",
+      thumbnail: "/social-media-scams.jpg",
       duration: "18:22",
       url: "#",
     },
@@ -74,7 +145,7 @@ export default function ResourcesPage() {
       thumbnail: "/placeholder.svg?height=120&width=200",
       url: "#",
     },
-  ]
+  ])
 
   const links = [
     {
@@ -118,7 +189,7 @@ export default function ResourcesPage() {
   })
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 container max-w-6xl mx-auto px-4 py-8 pb-24">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold">Resources</h1>
@@ -145,17 +216,38 @@ export default function ResourcesPage() {
         </TabsList>
         <TabsContent value="all" className="mt-0">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredResources.map((resource, index) => (
-              <motion.div
-                key={resource.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={loaded ? { opacity: 1, y: 0 } : {}}
-                transition={{ duration: 0.3, delay: index * 0.1 }}
-              >
-                <ResourceCard resource={resource} />
-              </motion.div>
-            ))}
+            {filteredResources.map((resource, index) => {
+              if (filteredResources.length === index + 1) {
+                return (
+                  <motion.div
+                    ref={lastResourceElementRef}
+                    key={resource.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={loaded ? { opacity: 1, y: 0 } : {}}
+                    transition={{ duration: 0.3, delay: index * 0.1 }}
+                  >
+                    <ResourceCard resource={resource} />
+                  </motion.div>
+                )
+              } else {
+                return (
+                  <motion.div
+                    key={resource.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={loaded ? { opacity: 1, y: 0 } : {}}
+                    transition={{ duration: 0.3, delay: index * 0.1 }}
+                  >
+                    <ResourceCard resource={resource} />
+                  </motion.div>
+                )
+              }
+            })}
           </div>
+          {isLoadingMore && (
+            <div className="flex justify-center py-8">
+              <LoadingSpinner size="lg" />
+            </div>
+          )}
         </TabsContent>
         <TabsContent value="article" className="mt-0">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -200,6 +292,28 @@ export default function ResourcesPage() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* AI-Powered URL Checker */}
+      <div className="mt-10">
+        <h2 className="text-2xl font-bold text-primary mb-6">AI-Powered Safety Tools</h2>
+        <URLChecker />
+
+        <div className="mt-6">
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-medium">Explore More AI Tools</h3>
+                  <p className="text-sm text-gray-500">Check out our full range of AI safety tools</p>
+                </div>
+                <Button asChild>
+                  <Link href="/dashboard/ai-tools">View All AI Tools</Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
 
       <Card className="mt-8">
         <CardHeader>

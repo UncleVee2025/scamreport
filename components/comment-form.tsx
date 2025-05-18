@@ -21,44 +21,51 @@ export function CommentForm({ scamId, onCommentAdded }: CommentFormProps) {
     if (!comment.trim()) return
 
     setIsSubmitting(true)
+    console.log(`Attempting to submit comment to scam ID: ${scamId}`)
 
     try {
-      // In a real app, this would be an actual API call
-      // const response = await fetch(`/api/scams/${scamId}/comments`, {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ text: comment })
-      // })
-      // const data = await response.json()
+      // Make an actual API call to the backend
+      console.log(`Sending request to /api/scams/${scamId}/comments`)
+      const response = await fetch(`/api/scams/${scamId}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: 1, comment: comment }), // In a real app, get userId from auth context
+      })
 
-      // Simulate API response
-      setTimeout(() => {
-        const newComment = {
-          id: Date.now(),
-          user: {
-            name: "You",
-            avatar: "/placeholder.svg?height=40&width=40&text=You",
-          },
-          text: comment,
-          date: "Just now",
-        }
+      console.log("Response status:", response.status)
+      const data = await response.json()
+      console.log("Response data:", data)
 
-        onCommentAdded(newComment)
-        setComment("")
-        setIsSubmitting(false)
-        toast({
-          title: "Comment posted",
-          description: "Your comment has been added successfully.",
-        })
-      }, 500)
+      if (!data.success) {
+        throw new Error(data.message || "Failed to post comment")
+      }
+
+      // Format the comment for display
+      const newComment = {
+        id: data.data.id,
+        user: {
+          name: "You",
+          avatar: "/placeholder.svg?height=40&width=40&text=You",
+        },
+        text: comment,
+        date: "Just now",
+      }
+
+      onCommentAdded(newComment)
+      setComment("")
+      toast({
+        title: "Comment posted",
+        description: "Your comment has been added successfully.",
+      })
     } catch (error) {
       console.error("Error submitting comment:", error)
-      setIsSubmitting(false)
       toast({
         title: "Error",
-        description: "Failed to post your comment. Please try again.",
+        description: `Failed to post your comment: ${error.message}`,
         variant: "destructive",
       })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 

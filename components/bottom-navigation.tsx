@@ -2,18 +2,17 @@
 
 import { usePathname } from "next/navigation"
 import Link from "next/link"
-// Add the Search icon import
-import { Home, Search, Bell, User, Plus } from "lucide-react"
+import { Home, FileText, Plus, BookOpen, User } from "lucide-react"
 
 export function BottomNavigation() {
   const pathname = usePathname()
 
-  // Update the navigation items array to include Search
+  // Updated navigation items - changed "Menu" to "Home"
   const navigation = [
     { name: "Home", href: "/dashboard", icon: Home },
-    { name: "Search", href: "/search", icon: Search },
+    { name: "Reports", href: "/explore-scams", icon: FileText },
     { name: "Report", href: "/dashboard/report", icon: Plus },
-    { name: "Notifications", href: "/dashboard/notifications", icon: Bell },
+    { name: "Resources", href: "/dashboard/resources", icon: BookOpen },
     { name: "Profile", href: "/dashboard/profile", icon: User },
   ]
 
@@ -37,11 +36,6 @@ export function BottomNavigation() {
           <Link key={item.name} href={item.href} className={`bottom-nav-item ${isActive ? "active" : ""}`}>
             <item.icon className={`h-6 w-6 mb-1 ${isActive ? "text-blue-600" : "text-gray-600"}`} />
             <span className={`text-sm font-medium ${isActive ? "text-blue-600" : "text-gray-600"}`}>{item.name}</span>
-            {item.name === "Notifications" && (
-              <span className="absolute top-1 right-6 bg-red-500 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full border-2 border-white">
-                3
-              </span>
-            )}
           </Link>
         )
       })}

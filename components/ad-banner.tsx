@@ -10,6 +10,7 @@ export function AdBanner() {
   const [isVisible, setIsVisible] = useState(true)
   const [ad, setAd] = useState<Advertisement | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [currentImageIndex, setCurrentImageIndex] = useState(1)
 
   useEffect(() => {
     const fetchAd = async () => {
@@ -28,6 +29,13 @@ export function AdBanner() {
     }
 
     fetchAd()
+
+    // Rotate through the 3 ad images
+    const interval = setInterval(() => {
+      setCurrentImageIndex((prev) => (prev % 3) + 1)
+    }, 5000)
+
+    return () => clearInterval(interval)
   }, [])
 
   if (!isVisible || (!ad && !isLoading)) return null
@@ -68,22 +76,13 @@ export function AdBanner() {
               </Button>
             </div>
 
-            {(ad.discount || ad.image_url) && (
-              <div className="w-full md:w-1/3 bg-gradient-to-br from-blue-500 to-purple-600 p-6 flex items-center justify-center h-40 md:h-full">
-                {ad.image_url ? (
-                  <img
-                    src={ad.image_url || "/placeholder.svg"}
-                    alt={ad.title}
-                    className="max-h-full max-w-full object-contain"
-                  />
-                ) : (
-                  <div className="text-center">
-                    <h4 className="font-bold text-xl mb-2">{ad.discount}</h4>
-                    <p className="text-sm">{ad.discount_description}</p>
-                  </div>
-                )}
-              </div>
-            )}
+            <div className="w-full md:w-1/3 bg-gradient-to-br from-blue-500 to-purple-600 p-6 flex items-center justify-center h-40 md:h-full">
+              <img
+                src={`/${currentImageIndex}.jpg`}
+                alt="Advertisement"
+                className="max-h-full max-w-full object-contain"
+              />
+            </div>
           </div>
         </div>
       </CardContent>

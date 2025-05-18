@@ -25,17 +25,54 @@ import {
   FileQuestion,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { toast } from "@/components/ui/use-toast"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 export default function ContentPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [filterType, setFilterType] = useState("all")
   const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
   const [contents, setContents] = useState([])
   const [editingContent, setEditingContent] = useState(null)
+  const [activeTab, setActiveTab] = useState("all")
 
   useEffect(() => {
-    // Simulate fetching data
-    setTimeout(() => {
+    fetchContent()
+  }, [activeTab])
+
+  const fetchContent = async () => {
+    try {
+      setIsLoading(true)
+
+      // In a real app, this would be an actual API call
+      const response = await fetch(`/api/admin/content?status=${activeTab !== "all" ? activeTab : ""}`)
+      const data = await response.json()
+
+      if (data.success) {
+        setContents(data.data || [])
+      } else {
+        throw new Error(data.message || "Failed to fetch content")
+      }
+    } catch (error) {
+      console.error("Error fetching content:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load content. Please try again.",
+        variant: "destructive",
+      })
+
+      // Fallback to mock data if API fails
       setContents([
         {
           id: 1,
@@ -115,9 +152,10 @@ export default function ContentPage() {
           author: "Support Team",
         },
       ])
+    } finally {
       setIsLoading(false)
-    }, 1000)
-  }, [])
+    }
+  }
 
   // Filter contents based on search query and type filter
   const filteredContents = contents.filter((content) => {
@@ -176,27 +214,142 @@ export default function ContentPage() {
     setEditingContent({ ...content })
   }
 
-  const handleSave = () => {
-    if (editingContent.id) {
-      // Update existing content
-      setContents(contents.map((content) => (content.id === editingContent.id ? { ...editingContent } : content)))
-    } else {
-      // Add new content
-      setContents([
-        ...contents,
-        {
-          ...editingContent,
-          id: contents.length + 1,
-          lastUpdated: new Date().toISOString(),
-          author: "Admin",
-        },
-      ])
+  const handleSave = async () => {
+    if (!editingContent.title || !editingContent.slug || !editingContent.content) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all required fields.",
+        variant: "destructive",
+      })
+      return
     }
-    setEditingContent(null)
+
+    setIsSaving(true)
+
+    try {
+      // Prepare data for API
+      const contentData = {
+        title: editingContent.title,
+        slug: editingContent.slug,
+        type: editingContent.type,
+        content: editingContent.content,
+        status: editingContent.status,
+        author: editingContent.author || "Admin",
+      }
+
+      let response
+
+      if (editingContent.id) {
+        // Update existing content
+        response = await fetch(`/api/admin/content/${editingContent.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(contentData),
+        })
+      } else {
+        // Add new content
+        response = await fetch("/api/admin/content", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(contentData),
+        })
+      }
+
+      const data = await response.json()
+
+      if (!data.success) {
+        throw new Error(data.message || "Failed to save content")
+      }
+
+      toast({
+        title: editingContent.id ? "Content Updated" : "Content Created",
+        description: editingContent.id
+          ? "Content has been updated successfully"
+          : "New content has been created successfully",
+      })
+
+      // Refresh content list
+      fetchContent()
+
+      // Close editor
+      setEditingContent(null)
+    } catch (error) {
+      console.error("Error saving content:", error)
+      toast({
+        title: "Error",
+        description: `Failed to save content: ${error.message}`,
+        variant: "destructive",
+      })
+    } finally {
+      setIsSaving(false)
+    }
   }
 
-  const handleDelete = (id) => {
-    setContents(contents.filter((content) => content.id !== id))
+  const handleDelete = async (id) => {
+    try {
+      const response = await fetch(`/api/admin/content/${id}`, {
+        method: "DELETE",
+      })
+
+      const data = await response.json()
+
+      if (!data.success) {
+        throw new Error(data.message || "Failed to delete content")
+      }
+
+      toast({
+        title: "Content Deleted",
+        description: "The content has been deleted successfully",
+      })
+
+      // Refresh content list
+      fetchContent()
+    } catch (error) {
+      console.error("Error deleting content:", error)
+      toast({
+        title: "Error",
+        description: `Failed to delete content: ${error.message}`,
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handlePublish = async (id) => {
+    try {
+      const response = await fetch(`/api/admin/content/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "published" }),
+      })
+
+      const data = await response.json()
+
+      if (!data.success) {
+        throw new Error(data.message || "Failed to publish content")
+      }
+
+      toast({
+        title: "Content Published",
+        description: "The content has been published successfully",
+      })
+
+      // Refresh content list
+      fetchContent()
+    } catch (error) {
+      console.error("Error publishing content:", error)
+      toast({
+        title: "Error",
+        description: `Failed to publish content: ${error.message}`,
+        variant: "destructive",
+      })
+    }
+  }
+
+  const generateSlug = (title) => {
+    return title
+      .toLowerCase()
+      .replace(/[^\w\s]/gi, "")
+      .replace(/\s+/g, "-")
   }
 
   return (
@@ -241,7 +394,15 @@ export default function ContentPage() {
                 <Input
                   id="title"
                   value={editingContent.title}
-                  onChange={(e) => setEditingContent({ ...editingContent, title: e.target.value })}
+                  onChange={(e) => {
+                    const newTitle = e.target.value
+                    setEditingContent({
+                      ...editingContent,
+                      title: newTitle,
+                      // Auto-generate slug if it's a new content or slug is empty
+                      slug: !editingContent.id || !editingContent.slug ? generateSlug(newTitle) : editingContent.slug,
+                    })
+                  }}
                   className="border-2 border-gray-300"
                 />
               </div>
@@ -309,9 +470,13 @@ export default function ContentPage() {
             >
               Cancel
             </Button>
-            <Button className="bg-blue-600 text-white border-2 border-blue-700 hover:bg-blue-700" onClick={handleSave}>
+            <Button
+              className="bg-blue-600 text-white border-2 border-blue-700 hover:bg-blue-700"
+              onClick={handleSave}
+              disabled={isSaving}
+            >
               <Save className="mr-2 h-4 w-4" />
-              <span className="text-base">Save Content</span>
+              <span className="text-base">{isSaving ? "Saving..." : "Save Content"}</span>
             </Button>
           </CardFooter>
         </Card>
@@ -360,7 +525,7 @@ export default function ContentPage() {
             </CardContent>
           </Card>
 
-          <Tabs defaultValue="all" className="w-full">
+          <Tabs defaultValue="all" className="w-full" onValueChange={setActiveTab}>
             <TabsList className="grid w-full grid-cols-3 mb-4 border-2 border-gray-200 p-1 bg-white">
               <TabsTrigger
                 value="all"
@@ -382,10 +547,16 @@ export default function ContentPage() {
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="all" className="mt-0">
+            <TabsContent value={activeTab} className="mt-0">
               <Card className="border-2 border-gray-200">
                 <CardHeader>
-                  <CardTitle>All Content</CardTitle>
+                  <CardTitle>
+                    {activeTab === "all"
+                      ? "All Content"
+                      : activeTab === "published"
+                        ? "Published Content"
+                        : "Draft Content"}
+                  </CardTitle>
                   <CardDescription>Showing {filteredContents.length} content items</CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -418,7 +589,9 @@ export default function ContentPage() {
                               </div>
                               <div className="flex items-center gap-2">
                                 {getStatusBadge(content.status)}
-                                <div className="text-xs text-gray-500">Updated: {formatDate(content.lastUpdated)}</div>
+                                <div className="text-xs text-gray-500">
+                                  Updated: {formatDate(content.lastUpdated || content.updated_at)}
+                                </div>
                               </div>
                             </div>
                             <div className="p-4">
@@ -452,175 +625,52 @@ export default function ContentPage() {
                                 <Edit className="h-4 w-4 mr-1" />
                                 <span className="text-sm">Edit</span>
                               </Button>
-                              <Button
-                                size="sm"
-                                className="bg-red-600 text-white border-2 border-red-700 hover:bg-red-700"
-                                onClick={() => handleDelete(content.id)}
-                              >
-                                <Trash2 className="h-4 w-4 mr-1" />
-                                <span className="text-sm">Delete</span>
-                              </Button>
+
+                              {content.status === "draft" && (
+                                <Button
+                                  size="sm"
+                                  className="bg-green-600 text-white border-2 border-green-700 hover:bg-green-700"
+                                  onClick={() => handlePublish(content.id)}
+                                >
+                                  <CheckCircle className="h-4 w-4 mr-1" />
+                                  <span className="text-sm">Publish</span>
+                                </Button>
+                              )}
+
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    className="bg-red-600 text-white border-2 border-red-700 hover:bg-red-700"
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-1" />
+                                    <span className="text-sm">Delete</span>
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      This action cannot be undone. This will permanently delete this content.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      className="bg-red-600 hover:bg-red-700"
+                                      onClick={() => handleDelete(content.id)}
+                                    >
+                                      Delete
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
                             </div>
                           </CardContent>
                         </Card>
                       ))}
                     </div>
                   )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="published" className="mt-0">
-              <Card className="border-2 border-gray-200">
-                <CardHeader>
-                  <CardTitle>Published Content</CardTitle>
-                  <CardDescription>Content currently visible to users</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {filteredContents
-                      .filter((content) => content.status === "published")
-                      .map((content) => (
-                        <Card key={content.id} className="overflow-hidden border-2 border-gray-200">
-                          <CardContent className="p-0">
-                            <div className="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
-                              <div className="flex items-center gap-2">
-                                <div className="p-2 rounded-full bg-blue-100 text-blue-600">
-                                  {getTypeIcon(content.type)}
-                                </div>
-                                <div>
-                                  <div className="font-medium text-gray-800">{content.title}</div>
-                                  <div className="text-xs text-gray-500">/{content.slug}</div>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Badge className="bg-green-600 text-white border-0">Published</Badge>
-                                <div className="text-xs text-gray-500">Updated: {formatDate(content.lastUpdated)}</div>
-                              </div>
-                            </div>
-                            <div className="p-4">
-                              <p className="text-gray-800 line-clamp-2">{content.content}</p>
-                              <div className="flex items-center gap-4 mt-3 text-sm text-gray-500">
-                                <div className="flex items-center">
-                                  <Info className="h-4 w-4 mr-1 text-gray-400" />
-                                  <span>Type: {content.type.charAt(0).toUpperCase() + content.type.slice(1)}</span>
-                                </div>
-                                <div className="flex items-center">
-                                  <CheckCircle className="h-4 w-4 mr-1 text-gray-400" />
-                                  <span>Author: {content.author}</span>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="p-3 border-t border-gray-200 bg-gray-50 flex justify-end gap-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="border-2 border-gray-300 text-gray-700"
-                                onClick={() => window.open(`/${content.slug}`, "_blank")}
-                              >
-                                <Eye className="h-4 w-4 mr-1" />
-                                <span className="text-sm">View</span>
-                              </Button>
-                              <Button
-                                size="sm"
-                                className="bg-blue-600 text-white border-2 border-blue-700 hover:bg-blue-700"
-                                onClick={() => handleEdit(content)}
-                              >
-                                <Edit className="h-4 w-4 mr-1" />
-                                <span className="text-sm">Edit</span>
-                              </Button>
-                              <Button
-                                size="sm"
-                                className="bg-red-600 text-white border-2 border-red-700 hover:bg-red-700"
-                                onClick={() => handleDelete(content.id)}
-                              >
-                                <Trash2 className="h-4 w-4 mr-1" />
-                                <span className="text-sm">Delete</span>
-                              </Button>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="draft" className="mt-0">
-              <Card className="border-2 border-gray-200">
-                <CardHeader>
-                  <CardTitle>Draft Content</CardTitle>
-                  <CardDescription>Content in progress, not visible to users</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {filteredContents
-                      .filter((content) => content.status === "draft")
-                      .map((content) => (
-                        <Card key={content.id} className="overflow-hidden border-2 border-gray-200">
-                          <CardContent className="p-0">
-                            <div className="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
-                              <div className="flex items-center gap-2">
-                                <div className="p-2 rounded-full bg-blue-100 text-blue-600">
-                                  {getTypeIcon(content.type)}
-                                </div>
-                                <div>
-                                  <div className="font-medium text-gray-800">{content.title}</div>
-                                  <div className="text-xs text-gray-500">/{content.slug}</div>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Badge className="bg-amber-500 text-white border-0">Draft</Badge>
-                                <div className="text-xs text-gray-500">Updated: {formatDate(content.lastUpdated)}</div>
-                              </div>
-                            </div>
-                            <div className="p-4">
-                              <p className="text-gray-800 line-clamp-2">{content.content}</p>
-                              <div className="flex items-center gap-4 mt-3 text-sm text-gray-500">
-                                <div className="flex items-center">
-                                  <Info className="h-4 w-4 mr-1 text-gray-400" />
-                                  <span>Type: {content.type.charAt(0).toUpperCase() + content.type.slice(1)}</span>
-                                </div>
-                                <div className="flex items-center">
-                                  <CheckCircle className="h-4 w-4 mr-1 text-gray-400" />
-                                  <span>Author: {content.author}</span>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="p-3 border-t border-gray-200 bg-gray-50 flex justify-end gap-2">
-                              <Button
-                                size="sm"
-                                className="bg-blue-600 text-white border-2 border-blue-700 hover:bg-blue-700"
-                                onClick={() => handleEdit(content)}
-                              >
-                                <Edit className="h-4 w-4 mr-1" />
-                                <span className="text-sm">Edit</span>
-                              </Button>
-                              <Button
-                                size="sm"
-                                className="bg-green-600 text-white border-2 border-green-700 hover:bg-green-700"
-                                onClick={() => {
-                                  setContents(
-                                    contents.map((c) => (c.id === content.id ? { ...c, status: "published" } : c)),
-                                  )
-                                }}
-                              >
-                                <CheckCircle className="h-4 w-4 mr-1" />
-                                <span className="text-sm">Publish</span>
-                              </Button>
-                              <Button
-                                size="sm"
-                                className="bg-red-600 text-white border-2 border-red-700 hover:bg-red-700"
-                                onClick={() => handleDelete(content.id)}
-                              >
-                                <Trash2 className="h-4 w-4 mr-1" />
-                                <span className="text-sm">Delete</span>
-                              </Button>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                  </div>
                 </CardContent>
               </Card>
             </TabsContent>

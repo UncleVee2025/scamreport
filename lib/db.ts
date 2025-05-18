@@ -13,6 +13,9 @@ const pool = mysql.createPool({
   queueLimit: 0,
 })
 
+// Export the pool as db (this was missing)
+export const db = pool
+
 // Helper function to execute SQL queries
 export async function query(sql: string, params: any[] = []) {
   try {
@@ -24,18 +27,18 @@ export async function query(sql: string, params: any[] = []) {
   }
 }
 
-// Initialize database tables
+// Update the initDatabase function to ensure all necessary tables exist
 export async function initDatabase() {
   try {
     const connection = await pool.getConnection()
 
-    // Create users table
+    // Create users table if it doesn't exist
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS users (
         id INT AUTO_INCREMENT PRIMARY KEY,
         email VARCHAR(255) UNIQUE NOT NULL,
         password VARCHAR(255) NOT NULL,
-        name VARCHAR(255) NOT NULL,
+        full_name VARCHAR(255) NOT NULL,
         phone VARCHAR(20),
         role ENUM('user', 'admin') DEFAULT 'user',
         verified BOOLEAN DEFAULT false,
@@ -45,54 +48,97 @@ export async function initDatabase() {
       )
     `)
 
-    // Create scams table
+    // Create scam_reports table if it doesn't exist
     await connection.execute(`
-      CREATE TABLE IF NOT EXISTS scams (
+      CREATE TABLE IF NOT EXISTS scam_reports (
         id INT AUTO_INCREMENT PRIMARY KEY,
         user_id INT,
-        type VARCHAR(100) NOT NULL,
         title VARCHAR(255) NOT NULL,
         description TEXT NOT NULL,
+        type VARCHAR(100) NOT NULL,
         date_occurred DATE,
         location VARCHAR(255),
         perpetrator_info TEXT,
         amount_lost DECIMAL(10,2),
         status ENUM('pending', 'verified', 'rejected') DEFAULT 'pending',
+        allow_comments BOOLEAN DEFAULT true,
         is_verified BOOLEAN DEFAULT false,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id)
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
       )
     `)
 
-    // Create comments table
+    // Create comments table if it doesn't exist
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS comments (
         id INT AUTO_INCREMENT PRIMARY KEY,
-        scam_id INT NOT NULL,
+        report_id INT NOT NULL,
         user_id INT NOT NULL,
-        content TEXT NOT NULL,
+        comment TEXT NOT NULL,
+        status ENUM('approved', 'pending', 'flagged', 'rejected') DEFAULT 'pending',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        FOREIGN KEY (scam_id) REFERENCES scams(id),
-        FOREIGN KEY (user_id) REFERENCES users(id)
+        FOREIGN KEY (report_id) REFERENCES scam_reports(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )
     `)
 
-    // Create me_too table
+    // Create comment_likes table if it doesn't exist
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS comment_likes (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        comment_id INT NOT NULL,
+        user_id INT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY unique_like (comment_id, user_id),
+        FOREIGN KEY (comment_id) REFERENCES comments(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `)
+
+    // Create comment_flags table if it doesn't exist
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS comment_flags (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        comment_id INT NOT NULL,
+        user_id INT NOT NULL,
+        reason TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY unique_flag (comment_id, user_id),
+        FOREIGN KEY (comment_id) REFERENCES comments(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `)
+
+    // Create notifications table if it doesn't exist
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        type VARCHAR(50) NOT NULL,
+        message TEXT NOT NULL,
+        related_id INT,
+        is_read BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `)
+
+    // Create me_too table if it doesn't exist
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS me_too (
         id INT AUTO_INCREMENT PRIMARY KEY,
-        scam_id INT NOT NULL,
+        report_id INT NOT NULL,
         user_id INT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE KEY unique_me_too (scam_id, user_id),
-        FOREIGN KEY (scam_id) REFERENCES scams(id),
-        FOREIGN KEY (user_id) REFERENCES users(id)
+        UNIQUE KEY unique_me_too (report_id, user_id),
+        FOREIGN KEY (report_id) REFERENCES scam_reports(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )
     `)
 
-    // Create advertisements table
+    // Create advertisements table if it doesn't exist
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS advertisements (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -116,8 +162,28 @@ export async function initDatabase() {
       )
     `)
 
+    // Create a test user if none exists
+    const [users] = await connection.execute("SELECT COUNT(*) as count FROM users")
+    if (users[0].count === 0) {
+      await connection.execute(`
+        INSERT INTO users (email, password, full_name, role, verified)
+        VALUES ('admin@example.com', '$2b$10$XdR0Z9XfMQO.QCjD4nk5W.j.PJT5ZZZyXJBRD1QNl4D5XUATfcQSe', 'Admin User', 'admin', true),
+               ('user@example.com', '$2b$10$XdR0Z9XfMQO.QCjD4nk5W.j.PJT5ZZZyXJBRD1QNl4D5XUATfcQSe', 'Regular User', 'user', true)
+      `)
+    }
+
+    // Create a test scam report if none exists
+    const [reports] = await connection.execute("SELECT COUNT(*) as count FROM scam_reports")
+    if (reports[0].count === 0) {
+      await connection.execute(`
+        INSERT INTO scam_reports (user_id, title, description, type, date_occurred, location, status, allow_comments)
+        VALUES (2, 'Test Scam Report', 'This is a test scam report for testing comments', 'phishing', '2023-01-01', 'Online', 'verified', true)
+      `)
+    }
+
     connection.release()
     console.log("Database initialized successfully")
+    return true
   } catch (error) {
     console.error("Error initializing database:", error)
     throw error
